@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ray — AIAgent 产品探索者 / 独立开发者</title>
+  <meta name="description" content="Ray，AIAgent 产品探索者与独立开发者，关注 AI Agent、产品原型、自动化工作流与个人创造力工具。" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta property="og:title" content="Ray — AIAgent 产品探索者 / 独立开发者" />
+  <meta property="og:description" content="探索 AI Agent 产品、自动化工作流与独立开发。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/og.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="site-header">
+    <nav class="nav" aria-label="主导航">
+      <a class="brand" href="#top" aria-label="Ray 首页">
+        <span class="brand-mark">R</span>
+        <span>Ray</span>
+      </a>
+      <div class="nav-links">
+        <a href="#focus">Focus</a>
+        <a href="#work">Work</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero section-shell">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Building with AI Agents
+      </div>
+      <h1>Ray</h1>
+      <p class="hero-subtitle">AIAgent 产品探索者 / 独立开发者</p>
+      <p class="hero-copy">
+        关注 AI Agent、自动化工作流与个人创造力工具。把复杂问题拆成可运行的系统，
+        用产品原型验证想法，用代码把探索变成现实。
+      </p>
+      <div class="hero-actions" aria-label="联系方式">
+        <a class="button primary" href="mailto:rayalexvector@gmail.com">Email</a>
+        <a class="button secondary" href="https://github.com/rayalexvector" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </section>
+
+    <section id="focus" class="section-shell split-section">
+      <div>
+        <p class="eyebrow">FOCUS</p>
+        <h2>探索下一代个人生产力界面。</h2>
+      </div>
+      <div class="focus-grid">
+        <article class="card">
+          <span class="card-index">01</span>
+          <h3>AI Agent 产品</h3>
+          <p>研究 Agent 如何从聊天助手进化为可委托、可执行、可迭代的数字协作者。</p>
+        </article>
+        <article class="card">
+          <span class="card-index">02</span>
+          <h3>独立开发</h3>
+          <p>以小团队和个人为尺度，快速搭建原型、验证需求，并沉淀可复用的产品能力。</p>
+        </article>
+        <article class="card">
+          <span class="card-index">03</span>
+          <h3>自动化工作流</h3>
+          <p>把重复任务、信息处理和创作流程模块化，让工具真正服务于长期积累。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="work" class="section-shell work-section">
+      <div class="panel">
+        <p class="eyebrow">NOW</p>
+        <h2>从想法到可用系统。</h2>
+        <p>
+          当前主页先作为简洁的个人名片存在。后续可继续扩展为作品集、博客、项目日志、
+          AI Agent 实验室或产品发布页。
+        </p>
+        <div class="signal-row" aria-label="工作方式">
+          <span>Prototype</span>
+          <span>Automate</span>
+          <span>Ship</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="section-shell contact-section">
+      <p class="eyebrow">CONTACT</p>
+      <h2>保持连接。</h2>
+      <div class="contact-list">
+        <a href="mailto:rayalexvector@gmail.com">
+          <span>Email</span>
+          <strong>rayalexvector@gmail.com</strong>
+        </a>
+        <a href="https://github.com/rayalexvector" target="_blank" rel="noreferrer">
+          <span>GitHub</span>
+          <strong>github.com/rayalexvector</strong>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>© <span id="year"></span> Ray</span>
+    <span>AIAgent Product Explorer / Indie Developer</span>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
