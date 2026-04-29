@@ -690,6 +690,7 @@ body.modal-open { overflow: hidden; }
   font-size: clamp(28px, 8vw, 40px);
   letter-spacing: -1.4px;
 }
+.wechat-dialog-compact .wechat-qr-frame { margin-top: 18px; }
 .wechat-close {
   position: absolute;
   top: 14px;
