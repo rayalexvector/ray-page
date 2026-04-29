@@ -18,60 +18,46 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="intro-active">
-  <section id="intro" class="intro-stage" aria-label="进入 Ray 个人主页">
-    <div class="intro-noise" aria-hidden="true"></div>
+  <section id="intro" class="intro-stage" aria-label="Ray cinematic gallery intro">
+    <div class="intro-media" aria-hidden="true">
+      <img src="assets/ray-eye-portrait.webp" alt="" decoding="async" fetchpriority="high" />
+    </div>
     <div class="intro-vignette" aria-hidden="true"></div>
+    <div class="intro-noise" aria-hidden="true"></div>
+
     <div id="ray-loader" class="ray-loader" aria-hidden="true">
       <svg class="ray-loader-defs" viewBox="0 0 1 1" focusable="false" aria-hidden="true">
         <defs>
-          <filter id="ray-liquid-filter">
-            <feTurbulence id="ray-liquid-noise" type="fractalNoise" baseFrequency="0.018 0.052" numOctaves="3" result="noise" />
-            <feDisplacementMap id="ray-liquid-map" in="SourceGraphic" in2="noise" scale="42" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-          <filter id="ray-vortex-filter">
-            <feTurbulence id="ray-vortex-noise" type="fractalNoise" baseFrequency="0.02 0.06" numOctaves="2" result="noise" />
-            <feDisplacementMap id="ray-vortex-map" in="SourceGraphic" in2="noise" scale="68" xChannelSelector="R" yChannelSelector="B" />
+          <filter id="ray-dissolve-filter">
+            <feTurbulence id="ray-dissolve-noise" type="fractalNoise" baseFrequency="0.012 0.052" numOctaves="4" seed="8" result="noise" />
+            <feDisplacementMap id="ray-dissolve-map" in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="G" />
           </filter>
         </defs>
       </svg>
-      <div class="ray-loader-scan"></div>
       <div class="ray-loader-halo"></div>
       <div class="ray-loader-mark">
         <span class="ray-loader-copy" data-text="Ray">Ray</span>
-        <span class="ray-loader-status">SYSTEM_OVERRIDE // RAY_INIT</span>
+        <span class="ray-loader-status">LIQUID_DISSOLVE // PORTRAIT_INIT</span>
       </div>
     </div>
 
     <nav class="intro-nav" aria-label="开场导航">
-      <a class="intro-logo" href="#intro" aria-label="Ray 开场页">
-        <span>R</span>
-        <strong>Ray</strong>
-      </a>
-      <div class="intro-links" aria-hidden="true">
-        <span>Agent</span>
-        <span>Products</span>
-        <span>Contact</span>
+      <a class="intro-logo" href="#intro" aria-label="Ray 开场页">Ray</a>
+      <div class="intro-icons" aria-hidden="true">
+        <span class="intro-icon">☼</span>
+        <span class="intro-icon">◎</span>
+        <span class="intro-icon intro-icon-ring">⌾</span>
+        <span class="intro-icon">☰</span>
       </div>
-      <a class="intro-mini-cta" href="https://github.com/rayalexvector" target="_blank" rel="noreferrer">GitHub</a>
     </nav>
 
     <div class="intro-copy">
-      <p class="intro-kicker">Building with Agents/Codex</p>
       <h1 class="intro-title">Ray</h1>
-      <p class="intro-subtitle">AI Agent产品探索者 / <span class="nowrap">独立开发者</span></p>
-      <p class="intro-description">
-        连接 AI API、Codex 与微信消息链路，构建可委托、可执行、可持续进化的个人智能体系统。
-      </p>
-      <button id="enter-site" class="intro-enter" type="button" aria-label="进入 Ray 主页">
-        <span>进入主页</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <p class="intro-subtitle">Exploring the boundaries of AI photography and visual storytelling.</p>
+      <button id="enter-site" class="intro-enter" type="button" aria-label="Enter Ray gallery">
+        <span>Enter Gallery</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-    </div>
-
-    <div class="intro-footerline" aria-hidden="true">
-      <span>AI API</span>
-      <span>WeChat Gateway</span>
-      <span>Self-evolving Skills</span>
     </div>
   </section>
 
@@ -204,42 +190,35 @@
     const intro = document.getElementById('intro');
     const loader = document.getElementById('ray-loader');
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const variants = ['liquid', 'vortex', 'glitch', 'cyber'];
-    const requestedVariant = new URLSearchParams(window.location.search).get('intro');
-    const chosenVariant = variants.includes(requestedVariant)
-      ? requestedVariant
-      : variants[Math.floor(Math.random() * variants.length)];
 
-    document.body.dataset.rayIntro = chosenVariant;
-
-    const animateFilter = (noiseId, mapId, duration = 2500) => {
-      const noise = document.getElementById(noiseId);
-      const map = document.getElementById(mapId);
+    const animateDissolve = () => {
+      const noise = document.getElementById('ray-dissolve-noise');
+      const map = document.getElementById('ray-dissolve-map');
       if (!noise || !map || reduceMotion) return;
       const start = performance.now();
+      const duration = 3100;
       const tick = (now) => {
         const progress = Math.min((now - start) / duration, 1);
-        const wobble = Math.sin(progress * Math.PI * 5) * (1 - progress);
-        const base = 0.018 + progress * 0.055;
-        noise.setAttribute('baseFrequency', `${Math.max(0, base + wobble * 0.018).toFixed(3)} ${(0.048 + progress * 0.06).toFixed(3)}`);
-        map.setAttribute('scale', String(Math.round(56 * (1 - progress) + Math.abs(wobble) * 42)));
+        const hold = progress < .44 ? 0 : (progress - .44) / .56;
+        const pulse = Math.sin(hold * Math.PI * 8) * Math.max(0, 1 - hold);
+        noise.setAttribute('baseFrequency', `${(0.012 + hold * .11 + Math.abs(pulse) * .018).toFixed(3)} ${(0.052 + hold * .12).toFixed(3)}`);
+        map.setAttribute('scale', String(Math.round(12 + hold * 116 + Math.abs(pulse) * 38)));
         if (progress < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     };
 
-    if (chosenVariant === 'liquid') animateFilter('ray-liquid-noise', 'ray-liquid-map');
-    if (chosenVariant === 'vortex') animateFilter('ray-vortex-noise', 'ray-vortex-map', 2700);
+    animateDissolve();
 
     window.setTimeout(() => {
       document.body.classList.add('intro-ready');
       loader?.setAttribute('aria-hidden', 'true');
-    }, reduceMotion ? 80 : 2750);
+    }, reduceMotion ? 80 : 3150);
 
     const enterMainSite = () => {
       document.body.classList.add('intro-leaving');
       window.setTimeout(() => {
-        document.body.classList.remove('intro-active', 'intro-leaving');
+        document.body.classList.remove('intro-active', 'intro-ready', 'intro-leaving');
         intro?.setAttribute('aria-hidden', 'true');
         document.getElementById('top')?.scrollIntoView({ block: 'start' });
       }, 900);
