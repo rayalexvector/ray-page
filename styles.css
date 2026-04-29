@@ -910,15 +910,18 @@ body.modal-open { overflow: hidden; }
 }
 .chat-composer textarea {
   width: 100%;
-  max-height: 150px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 120px;
   resize: none;
   border: 0;
-  padding: 11px 12px;
+  padding: 9px 12px;
   color: #fff;
   background: transparent;
   font: inherit;
-  line-height: 1.6;
+  line-height: 1.45;
   outline: none;
+  overflow-y: hidden;
 }
 .chat-send {
   min-height: 42px;
