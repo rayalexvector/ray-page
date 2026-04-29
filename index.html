@@ -109,6 +109,10 @@
           <svg class="button-icon wechat-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#07C160" d="M9.7 4.2C5.4 4.2 2 7 2 10.4c0 2 1.2 3.8 3 4.9l-.6 2 2.4-1.2c.9.3 1.8.5 2.9.5h.5a5.7 5.7 0 0 1-.3-1.8c0-3.1 3-5.6 6.8-5.6h.3c-.7-2.8-3.7-5-7.3-5Zm-2.6 3.1c.6 0 1 .4 1 1s-.4 1-1 1-1-.4-1-1 .4-1 1-1Zm5.1 0c.6 0 1 .4 1 1s-.4 1-1 1-1-.4-1-1 .4-1 1-1Zm4.5 3.2c-3.1 0-5.7 2-5.7 4.5s2.6 4.5 5.7 4.5c.8 0 1.5-.1 2.2-.4l1.9.9-.5-1.6c1-.8 1.7-2 1.7-3.4 0-2.5-2.4-4.5-5.3-4.5Zm-1.8 2.4c.5 0 .8.3.8.8s-.3.8-.8.8-.8-.3-.8-.8.4-.8.8-.8Zm3.7 0c.5 0 .8.3.8.8s-.3.8-.8.8-.8-.3-.8-.8.4-.8.8-.8Z"/></svg>
           <span>WeChat</span>
         </button>
+        <button class="button ai-button" type="button" data-open-chat>
+          <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5l1.42 5.04L18.5 9l-5.08 1.46L12 15.5l-1.42-5.04L5.5 9l5.08-1.46L12 2.5Zm6.2 9.8.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7ZM6 13l1.05 3.2L10.25 17l-3.2.8L6 21l-1.05-3.2-3.2-.8 3.2-.8L6 13Z"/></svg>
+          <span>AI Chat</span>
+        </button>
       </div>
     </section>
 
@@ -226,6 +230,41 @@
     </div>
   </div>
 
+  <div id="chat-modal" class="chat-modal" role="dialog" aria-modal="true" aria-labelledby="chat-title" hidden>
+    <div class="chat-backdrop" data-close-chat></div>
+    <div class="chat-shell" role="document">
+      <aside class="chat-sidebar" aria-label="历史对话">
+        <div class="chat-brand">
+          <span class="chat-brand-mark">R</span>
+          <div>
+            <p class="eyebrow">MIMO AGENT</p>
+            <strong>Ray AI Studio</strong>
+          </div>
+        </div>
+        <button id="chat-new" class="chat-new" type="button">+ 新对话</button>
+        <div id="chat-history" class="chat-history" aria-label="本地历史对话"></div>
+        <label class="chat-invite">
+          <span>邀请码</span>
+          <input id="chat-invite" type="password" autocomplete="off" placeholder="RAY-XXXX-XXXX-XXXX" />
+        </label>
+        <p class="chat-sidebar-note">历史和邀请码仅保存在当前浏览器，不上传服务器。</p>
+      </aside>
+      <section class="chat-main" aria-label="AI Chat 主窗口">
+        <button class="chat-close" type="button" data-close-chat aria-label="关闭 AI Chat">×</button>
+        <header class="chat-header">
+          <p class="eyebrow">RAY × MIMO</p>
+          <h2 id="chat-title">Ray AI Chat</h2>
+          <p>保留基础文本对话能力，界面保持干净克制。</p>
+        </header>
+        <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+        <form id="chat-form" class="chat-composer">
+          <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="输入消息，和 Ray 的 AI Agent 对话…" required></textarea>
+          <button class="chat-send" type="submit" aria-label="发送消息">发送</button>
+        </form>
+      </section>
+    </div>
+  </div>
+
   <footer class="footer">
     <span>© <span id="year"></span> Ray</span>
     <span>AIAgent Product Explorer / Indie Developer</span>
@@ -317,6 +356,143 @@
     wechatClosers.forEach((button) => button.addEventListener('click', closeWechatModal));
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && wechatModal && !wechatModal.hidden) closeWechatModal();
+    });
+
+    const chatModal = document.getElementById('chat-modal');
+    const chatOpeners = document.querySelectorAll('[data-open-chat]');
+    const chatClosers = document.querySelectorAll('[data-close-chat]');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatHistory = document.getElementById('chat-history');
+    const chatNew = document.getElementById('chat-new');
+    const chatInviteInput = document.getElementById('chat-invite');
+    const chatEndpoint = 'https://api.rayalex.cn/chat';
+    const chatStoreKey = 'ray-mimo-chat-history-v1';
+    const chatInviteKey = 'ray-mimo-invite-code-v1';
+    let activeChatId = null;
+    let conversations = [];
+
+    const loadConversations = () => {
+      try { conversations = JSON.parse(localStorage.getItem(chatStoreKey) || '[]'); }
+      catch (_) { conversations = []; }
+      if (!Array.isArray(conversations)) conversations = [];
+      if (!conversations.length) createConversation(false);
+      activeChatId = activeChatId || conversations[0]?.id;
+    };
+    const saveConversations = () => localStorage.setItem(chatStoreKey, JSON.stringify(conversations.slice(0, 20)));
+    const createConversation = (render = true) => {
+      const item = { id: String(Date.now()), title: '新对话', messages: [], updatedAt: Date.now() };
+      conversations.unshift(item);
+      activeChatId = item.id;
+      saveConversations();
+      if (render) renderChat();
+      return item;
+    };
+    const activeConversation = () => conversations.find((item) => item.id === activeChatId) || conversations[0];
+    const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+    const renderHistory = () => {
+      if (!chatHistory) return;
+      chatHistory.innerHTML = conversations.map((item) => `
+        <button class="chat-history-item${item.id === activeChatId ? ' is-active' : ''}" type="button" data-chat-id="${item.id}">
+          <span>${escapeHtml(item.title || '新对话')}</span>
+          <small>${new Date(item.updatedAt || Date.now()).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}</small>
+        </button>
+      `).join('');
+      chatHistory.querySelectorAll('[data-chat-id]').forEach((button) => {
+        button.addEventListener('click', () => {
+          activeChatId = button.getAttribute('data-chat-id');
+          renderChat();
+        });
+      });
+    };
+    const renderMessages = () => {
+      const current = activeConversation();
+      if (!chatMessages || !current) return;
+      if (!current.messages.length) {
+        chatMessages.innerHTML = '<div class="chat-empty"><span>Ask anything</span><p>这里会保留当前浏览器里的历史对话。</p></div>';
+        return;
+      }
+      chatMessages.innerHTML = current.messages.map((message) => `
+        <div class="chat-message is-${message.role}">
+          <div class="chat-avatar">${message.role === 'user' ? '你' : 'R'}</div>
+          <div class="chat-bubble">${escapeHtml(message.content)}</div>
+        </div>
+      `).join('');
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+    const renderChat = () => { renderHistory(); renderMessages(); };
+
+    const openChatModal = () => {
+      if (!chatModal) return;
+      loadConversations();
+      if (chatInviteInput) chatInviteInput.value = localStorage.getItem(chatInviteKey) || '';
+      renderChat();
+      chatModal.hidden = false;
+      document.body.classList.add('modal-open');
+      chatInput?.focus();
+    };
+    const closeChatModal = () => {
+      if (!chatModal) return;
+      chatModal.hidden = true;
+      document.body.classList.remove('modal-open');
+    };
+    chatOpeners.forEach((button) => button.addEventListener('click', openChatModal));
+    chatClosers.forEach((button) => button.addEventListener('click', closeChatModal));
+    chatNew?.addEventListener('click', () => createConversation(true));
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && chatModal && !chatModal.hidden) closeChatModal();
+    });
+    chatInput?.addEventListener('input', () => {
+      chatInput.style.height = 'auto';
+      chatInput.style.height = `${Math.min(chatInput.scrollHeight, 150)}px`;
+    });
+    chatInviteInput?.addEventListener('change', () => {
+      localStorage.setItem(chatInviteKey, chatInviteInput.value.trim());
+    });
+
+    chatForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const text = chatInput?.value.trim();
+      const inviteCode = chatInviteInput?.value.trim() || localStorage.getItem(chatInviteKey) || '';
+      const current = activeConversation();
+      if (!text || !current) return;
+      if (!inviteCode) {
+        current.messages.push({ role: 'assistant', content: '请先输入邀请码。' });
+        renderChat();
+        chatInviteInput?.focus();
+        return;
+      }
+      localStorage.setItem(chatInviteKey, inviteCode);
+      const submitButton = chatForm.querySelector('button[type="submit"]');
+      current.messages.push({ role: 'user', content: text });
+      current.title = current.title === '新对话' ? text.slice(0, 18) : current.title;
+      current.updatedAt = Date.now();
+      chatInput.value = '';
+      chatInput.style.height = 'auto';
+      renderChat();
+      submitButton?.setAttribute('disabled', 'true');
+      try {
+        const history = current.messages.slice(-50).map((message) => ({ role: message.role, content: message.content }));
+        const response = await fetch(chatEndpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-ray-invite-code': inviteCode },
+          body: JSON.stringify({ messages: history, max_tokens: 1536 }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          const message = data.error === 'invalid_invite_code' ? '邀请码无效或已作废。' : (data.error === 'channel_paused' ? 'MiMo 通道已暂停。' : '连接失败，请稍后再试。');
+          throw new Error(message);
+        }
+        current.messages.push({ role: 'assistant', content: data.reply || '没有收到有效回复。' });
+      } catch (error) {
+        current.messages.push({ role: 'assistant', content: error.message || '连接失败，请稍后再试。' });
+      } finally {
+        current.updatedAt = Date.now();
+        saveConversations();
+        renderChat();
+        submitButton?.removeAttribute('disabled');
+      }
     });
   </script>
 </body>
