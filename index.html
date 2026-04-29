@@ -257,7 +257,7 @@
         </header>
         <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
         <form id="chat-form" class="chat-composer">
-          <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="ENJOY NEXT GEN AGENT" required></textarea>
+          <input id="chat-input" name="message" type="text" maxlength="4000" placeholder="ENJOY NEXT GEN AGENT" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" required />
           <button class="chat-send" type="submit" aria-label="发送消息">发送</button>
         </form>
       </section>
@@ -452,12 +452,6 @@
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && chatModal && !chatModal.hidden) closeChatModal();
     });
-    const resizeChatInput = () => {
-      if (!chatInput) return;
-      chatInput.style.height = '42px';
-      chatInput.style.height = `${Math.min(Math.max(chatInput.scrollHeight, 42), 120)}px`;
-    };
-    chatInput?.addEventListener('input', resizeChatInput);
     chatInviteInput?.addEventListener('change', () => {
       localStorage.setItem(chatInviteKey, chatInviteInput.value.trim());
     });
@@ -480,7 +474,6 @@
       current.title = current.title === '新对话' ? text.slice(0, 18) : current.title;
       current.updatedAt = Date.now();
       chatInput.value = '';
-      resizeChatInput();
       renderChat();
       submitButton?.setAttribute('disabled', 'true');
       try {
