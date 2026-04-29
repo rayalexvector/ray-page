@@ -24,6 +24,7 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
+.nowrap { white-space: nowrap; }
 ::selection { background: #171717; color: #fff; }
 
 .grain {
@@ -212,6 +213,8 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
   transition: transform .18s ease, box-shadow .18s ease;
 }
 .project-link:hover { transform: translateY(-2px); }
+.project-link-muted { color: inherit; }
+.project-link-muted:hover { transform: none; }
 .project-link span {
   color: var(--soft);
   font-family: var(--mono);
@@ -261,7 +264,7 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
   .nav { padding: 0 18px; height: 62px; }
   .nav-links { gap: 14px; font-size: 13px; }
   .section-shell { padding: 72px 18px; }
-  .hero { min-height: calc(100svh - 62px); }
+  .hero { min-height: auto; padding-top: 92px; padding-bottom: 92px; }
   .hero-copy { font-size: 17px; line-height: 1.76; }
   .split-section, .contact-list, .projects-grid { grid-template-columns: 1fr; }
   .split-section { gap: 32px; }
