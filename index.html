@@ -15,12 +15,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=cinematic-eye-3" />
+  <link rel="stylesheet" href="styles.css?v=cinematic-camera-drift" />
 </head>
 <body class="intro-active">
   <section id="intro" class="intro-stage" aria-label="Ray cinematic gallery intro">
     <div class="intro-media" aria-hidden="true">
-      <img src="assets/ray-eye-portrait.webp?v=cinematic-eye-3" alt="" decoding="async" fetchpriority="high" />
+      <div class="intro-camera-frame">
+        <div class="intro-camera-drift">
+          <img src="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" alt="" decoding="async" fetchpriority="high" />
+        </div>
+      </div>
     </div>
     <div class="intro-vignette" aria-hidden="true"></div>
     <div class="intro-noise" aria-hidden="true"></div>
@@ -28,21 +32,26 @@
     <div id="ray-loader" class="ray-loader" aria-hidden="true">
       <svg class="ray-loader-defs" viewBox="0 0 1 1" focusable="false" aria-hidden="true">
         <defs>
-          <filter id="ray-dissolve-filter">
-            <feTurbulence id="ray-dissolve-noise" type="fractalNoise" baseFrequency="0.012 0.052" numOctaves="4" seed="8" result="noise" />
-            <feDisplacementMap id="ray-dissolve-map" in="SourceGraphic" in2="noise" scale="12" xChannelSelector="R" yChannelSelector="G" />
+          <filter id="ray-liquid-filter">
+            <feTurbulence id="ray-liquid-noise" type="fractalNoise" baseFrequency="0.018 0.052" numOctaves="3" result="noise" />
+            <feDisplacementMap id="ray-liquid-map" in="SourceGraphic" in2="noise" scale="42" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <filter id="ray-vortex-filter">
+            <feTurbulence id="ray-vortex-noise" type="fractalNoise" baseFrequency="0.02 0.06" numOctaves="2" result="noise" />
+            <feDisplacementMap id="ray-vortex-map" in="SourceGraphic" in2="noise" scale="68" xChannelSelector="R" yChannelSelector="B" />
           </filter>
         </defs>
       </svg>
+      <div class="ray-loader-scan"></div>
       <div class="ray-loader-halo"></div>
       <div class="ray-loader-mark">
         <span class="ray-loader-copy" data-text="Ray">Ray</span>
-        <span class="ray-loader-status">LIQUID_DISSOLVE // PORTRAIT_INIT</span>
+        <span class="ray-loader-status">SYSTEM_OVERRIDE // RAY_INIT</span>
       </div>
     </div>
 
     <nav class="intro-nav" aria-label="开场导航">
-      <a class="intro-logo" href="#intro" aria-label="Ray 开场页">Ray</a>
+      <a class="intro-logo" href="#intro" aria-label="Wayne 开场页">Wayne</a>
       <div class="intro-icons" aria-hidden="true">
         <span class="intro-icon">☼</span>
         <span class="intro-icon">◎</span>
@@ -52,10 +61,10 @@
     </nav>
 
     <div class="intro-copy">
-      <h1 class="intro-title">Ray</h1>
-      <p class="intro-subtitle">Exploring the boundaries of AI photography and visual storytelling.</p>
+      <h1 class="intro-title">Experience Next-Gen</h1>
+      <p class="intro-signature">— Ray</p>
       <button id="enter-site" class="intro-enter" type="button" aria-label="Enter Ray gallery">
-        <span>Enter Gallery</span>
+        <span>Enter</span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
@@ -191,42 +200,51 @@
     const loader = document.getElementById('ray-loader');
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    const animateDissolve = () => {
-      const noise = document.getElementById('ray-dissolve-noise');
-      const map = document.getElementById('ray-dissolve-map');
+    const variants = ['liquid', 'vortex', 'glitch', 'cyber'];
+    const requestedVariant = new URLSearchParams(window.location.search).get('intro');
+    const chosenVariant = variants.includes(requestedVariant)
+      ? requestedVariant
+      : variants[Math.floor(Math.random() * variants.length)];
+
+    document.body.dataset.rayIntro = chosenVariant;
+
+    const animateFilter = (noiseId, mapId, duration = 2500) => {
+      const noise = document.getElementById(noiseId);
+      const map = document.getElementById(mapId);
       if (!noise || !map || reduceMotion) return;
       const start = performance.now();
-      const duration = 3100;
       const tick = (now) => {
         const progress = Math.min((now - start) / duration, 1);
-        const hold = progress < .44 ? 0 : (progress - .44) / .56;
-        const pulse = Math.sin(hold * Math.PI * 8) * Math.max(0, 1 - hold);
-        noise.setAttribute('baseFrequency', `${(0.012 + hold * .11 + Math.abs(pulse) * .018).toFixed(3)} ${(0.052 + hold * .12).toFixed(3)}`);
-        map.setAttribute('scale', String(Math.round(12 + hold * 116 + Math.abs(pulse) * 38)));
+        const wobble = Math.sin(progress * Math.PI * 5) * (1 - progress);
+        const base = 0.018 + progress * 0.055;
+        noise.setAttribute('baseFrequency', `${Math.max(0, base + wobble * 0.018).toFixed(3)} ${(0.048 + progress * 0.06).toFixed(3)}`);
+        map.setAttribute('scale', String(Math.round(56 * (1 - progress) + Math.abs(wobble) * 42)));
         if (progress < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     };
 
-    animateDissolve();
+    if (chosenVariant === 'liquid') animateFilter('ray-liquid-noise', 'ray-liquid-map');
+    if (chosenVariant === 'vortex') animateFilter('ray-vortex-noise', 'ray-vortex-map', 2700);
 
     window.setTimeout(() => {
       document.body.classList.add('intro-ready');
       loader?.setAttribute('aria-hidden', 'true');
 
       // Fallback for browsers/tools that pause CSS transitions while the tab is backgrounded.
-      // This keeps the final cinematic hero visible even if the decorative motion is throttled.
-      loader?.style.setProperty('display', 'none', 'important');
-      ['.intro-media', '.intro-vignette', '.intro-nav', '.intro-title', '.intro-subtitle', '#enter-site'].forEach((selector) => {
-        const element = document.querySelector(selector);
-        element?.style.setProperty('transition', 'none', 'important');
-        element?.style.setProperty('animation', 'none', 'important');
-        element?.style.setProperty('opacity', '1', 'important');
-        element?.style.setProperty('filter', 'none', 'important');
-      });
-      document.querySelector('.intro-media')?.style.setProperty('transform', 'scale(1)', 'important');
-      document.querySelector('.intro-media img')?.style.setProperty('animation', 'none', 'important');
-    }, reduceMotion ? 80 : 3150);
+      // Run after the intended reveal timing, so normal browsers still see the motion.
+      window.setTimeout(() => {
+        loader?.style.setProperty('display', 'none', 'important');
+        ['.intro-media', '.intro-vignette', '.intro-nav', '.intro-title', '.intro-signature', '#enter-site'].forEach((selector) => {
+          const element = document.querySelector(selector);
+          element?.style.setProperty('transition', 'none', 'important');
+          element?.style.setProperty('animation', 'none', 'important');
+          element?.style.setProperty('opacity', '1', 'important');
+          element?.style.setProperty('filter', 'none', 'important');
+        });
+        document.querySelector('.intro-media')?.style.setProperty('transform', 'scale(1)', 'important');
+      }, reduceMotion ? 0 : 2200);
+    }, reduceMotion ? 80 : 2850);
 
     const enterMainSite = () => {
       document.body.classList.add('intro-leaving');
