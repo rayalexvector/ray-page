@@ -908,24 +908,21 @@ body.modal-open { overflow: hidden; }
   border-radius: 22px;
   background: rgba(255,255,255,.07);
 }
-.chat-composer input {
+.chat-composer textarea {
   width: 100%;
   height: 42px;
   min-height: 42px;
+  max-height: 120px;
+  resize: none;
   border: 0;
-  padding: 0 12px;
+  padding: 9px 12px;
   color: #fff;
   background: transparent;
   font: inherit;
-  line-height: 42px;
+  line-height: 1.45;
   outline: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  -webkit-appearance: none;
-  appearance: none;
+  overflow-y: hidden;
 }
-.chat-composer input::placeholder { color: rgba(255,255,255,.48); }
 .chat-send {
   min-height: 42px;
   padding: 0 18px;
