@@ -179,8 +179,12 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
 .card p, .panel p, .contact-section p { color: var(--muted); font-size: 16px; line-height: 1.72; }
 
 .work-section { padding-top: 48px; }
-.panel { padding: clamp(32px, 7vw, 72px); }
-.panel p:not(.eyebrow) { max-width: 720px; margin-top: 24px; font-size: 18px; line-height: 1.8; }
+.projects-heading { max-width: 760px; margin-bottom: 28px; }
+.projects-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.panel { padding: clamp(30px, 5vw, 52px); }
+.product-panel { display: flex; flex-direction: column; }
+.product-panel h3 { font-size: clamp(28px, 4vw, 42px); line-height: 1.05; letter-spacing: -1.8px; }
+.panel p:not(.eyebrow) { max-width: 720px; margin-top: 22px; font-size: 17px; line-height: 1.8; }
 .product-meta {
   display: flex;
   flex-wrap: wrap;
@@ -259,7 +263,7 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
   .section-shell { padding: 72px 18px; }
   .hero { min-height: calc(100svh - 62px); }
   .hero-copy { font-size: 17px; line-height: 1.76; }
-  .split-section, .contact-list { grid-template-columns: 1fr; }
+  .split-section, .contact-list, .projects-grid { grid-template-columns: 1fr; }
   .split-section { gap: 32px; }
   h2 { letter-spacing: -1.6px; }
   .footer { flex-direction: column; padding-left: 18px; padding-right: 18px; }
