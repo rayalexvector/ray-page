@@ -181,13 +181,13 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
 .work-section { padding-top: 48px; }
 .panel { padding: clamp(32px, 7vw, 72px); }
 .panel p:not(.eyebrow) { max-width: 720px; margin-top: 24px; font-size: 18px; line-height: 1.8; }
-.signal-row {
+.product-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 32px;
 }
-.signal-row span {
+.product-meta span {
   border-radius: 999px;
   padding: 7px 12px;
   background: #f5f5f5;
@@ -195,6 +195,30 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
   font-family: var(--mono);
   font-size: 12px;
   color: #4d4d4d;
+}
+.project-link {
+  margin-top: 18px;
+  display: grid;
+  gap: 7px;
+  max-width: 520px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: rgba(0, 0, 0, 0.08) 0 0 0 1px, rgba(0, 0, 0, 0.04) 0 2px 2px;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.project-link:hover { transform: translateY(-2px); }
+.project-link span {
+  color: var(--soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.project-link strong {
+  font-size: 16px;
+  font-weight: 500;
+  word-break: break-word;
 }
 
 .contact-section { padding-top: 56px; }
