@@ -19,9 +19,28 @@
 </head>
 <body class="intro-active">
   <section id="intro" class="intro-stage" aria-label="进入 Ray 个人主页">
-    <div class="intro-blackout" aria-hidden="true"></div>
     <div class="intro-noise" aria-hidden="true"></div>
     <div class="intro-vignette" aria-hidden="true"></div>
+    <div id="ray-loader" class="ray-loader" aria-hidden="true">
+      <svg class="ray-loader-defs" viewBox="0 0 1 1" focusable="false" aria-hidden="true">
+        <defs>
+          <filter id="ray-liquid-filter">
+            <feTurbulence id="ray-liquid-noise" type="fractalNoise" baseFrequency="0.018 0.052" numOctaves="3" result="noise" />
+            <feDisplacementMap id="ray-liquid-map" in="SourceGraphic" in2="noise" scale="42" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <filter id="ray-vortex-filter">
+            <feTurbulence id="ray-vortex-noise" type="fractalNoise" baseFrequency="0.02 0.06" numOctaves="2" result="noise" />
+            <feDisplacementMap id="ray-vortex-map" in="SourceGraphic" in2="noise" scale="68" xChannelSelector="R" yChannelSelector="B" />
+          </filter>
+        </defs>
+      </svg>
+      <div class="ray-loader-scan"></div>
+      <div class="ray-loader-halo"></div>
+      <div class="ray-loader-mark">
+        <span class="ray-loader-copy" data-text="Ray">Ray</span>
+        <span class="ray-loader-status">SYSTEM_OVERRIDE // RAY_INIT</span>
+      </div>
+    </div>
 
     <nav class="intro-nav" aria-label="开场导航">
       <a class="intro-logo" href="#intro" aria-label="Ray 开场页">
@@ -183,6 +202,40 @@
 
     const enterButton = document.getElementById('enter-site');
     const intro = document.getElementById('intro');
+    const loader = document.getElementById('ray-loader');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const variants = ['liquid', 'vortex', 'glitch', 'cyber'];
+    const requestedVariant = new URLSearchParams(window.location.search).get('intro');
+    const chosenVariant = variants.includes(requestedVariant)
+      ? requestedVariant
+      : variants[Math.floor(Math.random() * variants.length)];
+
+    document.body.dataset.rayIntro = chosenVariant;
+
+    const animateFilter = (noiseId, mapId, duration = 2500) => {
+      const noise = document.getElementById(noiseId);
+      const map = document.getElementById(mapId);
+      if (!noise || !map || reduceMotion) return;
+      const start = performance.now();
+      const tick = (now) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const wobble = Math.sin(progress * Math.PI * 5) * (1 - progress);
+        const base = 0.018 + progress * 0.055;
+        noise.setAttribute('baseFrequency', `${Math.max(0, base + wobble * 0.018).toFixed(3)} ${(0.048 + progress * 0.06).toFixed(3)}`);
+        map.setAttribute('scale', String(Math.round(56 * (1 - progress) + Math.abs(wobble) * 42)));
+        if (progress < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+
+    if (chosenVariant === 'liquid') animateFilter('ray-liquid-noise', 'ray-liquid-map');
+    if (chosenVariant === 'vortex') animateFilter('ray-vortex-noise', 'ray-vortex-map', 2700);
+
+    window.setTimeout(() => {
+      document.body.classList.add('intro-ready');
+      loader?.setAttribute('aria-hidden', 'true');
+    }, reduceMotion ? 80 : 2750);
+
     const enterMainSite = () => {
       document.body.classList.add('intro-leaving');
       window.setTimeout(() => {
