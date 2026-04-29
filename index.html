@@ -17,7 +17,46 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="intro-active">
+  <section id="intro" class="intro-stage" aria-label="进入 Ray 个人主页">
+    <div class="intro-noise" aria-hidden="true"></div>
+    <div class="intro-orb intro-orb-a" aria-hidden="true"></div>
+    <div class="intro-orb intro-orb-b" aria-hidden="true"></div>
+    <div class="intro-grid" aria-hidden="true"></div>
+
+    <nav class="intro-nav" aria-label="开场导航">
+      <a class="intro-logo" href="#intro" aria-label="Ray 开场页">
+        <span>R</span>
+        <strong>Ray</strong>
+      </a>
+      <div class="intro-links" aria-hidden="true">
+        <span>Agent</span>
+        <span>Products</span>
+        <span>Contact</span>
+      </div>
+      <a class="intro-mini-cta" href="https://github.com/rayalexvector" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+
+    <div class="intro-copy">
+      <p class="intro-kicker">Building with Agents/Codex</p>
+      <h1 class="intro-title">Ray</h1>
+      <p class="intro-subtitle">AI Agent产品探索者 / <span class="nowrap">独立开发者</span></p>
+      <p class="intro-description">
+        连接 AI API、Codex 与微信消息链路，构建可委托、可执行、可持续进化的个人智能体系统。
+      </p>
+      <button id="enter-site" class="intro-enter" type="button" aria-label="进入 Ray 主页">
+        <span>进入主页</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h12m0 0-5-5m5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <div class="intro-footerline" aria-hidden="true">
+      <span>AI API</span>
+      <span>WeChat Gateway</span>
+      <span>Self-evolving Skills</span>
+    </div>
+  </section>
+
   <div class="grain" aria-hidden="true"></div>
   <header class="site-header">
     <nav class="nav" aria-label="主导航">
@@ -142,6 +181,22 @@
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    const enterButton = document.getElementById('enter-site');
+    const intro = document.getElementById('intro');
+    const enterMainSite = () => {
+      document.body.classList.add('intro-leaving');
+      window.setTimeout(() => {
+        document.body.classList.remove('intro-active', 'intro-leaving');
+        intro?.setAttribute('aria-hidden', 'true');
+        document.getElementById('top')?.scrollIntoView({ block: 'start' });
+      }, 900);
+    };
+
+    enterButton?.addEventListener('click', enterMainSite);
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && document.body.classList.contains('intro-active')) enterMainSite();
+    });
   </script>
 </body>
 </html>
