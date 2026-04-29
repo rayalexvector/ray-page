@@ -225,7 +225,7 @@
       // Run after the intended reveal timing, so normal browsers still see the motion.
       window.setTimeout(() => {
         loader?.style.setProperty('display', 'none', 'important');
-        ['.intro-media', '.intro-vignette', '.intro-nav', '.intro-title', '.intro-signature', '#enter-site'].forEach((selector) => {
+        ['.intro-media', '.intro-vignette', '.intro-title', '.intro-signature', '#enter-site'].forEach((selector) => {
           const element = document.querySelector(selector);
           element?.style.setProperty('transition', 'none', 'important');
           element?.style.setProperty('animation', 'none', 'important');
