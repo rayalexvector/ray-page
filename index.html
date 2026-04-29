@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Ray — AI Agent产品探索者 / 独立开发者</title>
   <meta name="description" content="Ray，AIAgent 产品探索者与独立开发者，关注 AI Agent、产品原型、自动化工作流与个人创造力工具。" />
   <meta name="theme-color" content="#ffffff" />
@@ -91,7 +91,7 @@
         用产品原型验证想法，用代码把探索变成现实。
       </p>
       <div class="hero-actions" aria-label="联系方式">
-        <a class="button primary" href="mailto:rayalexvector@gmail.com">
+        <a class="button secondary" href="mailto:rayalexvector@gmail.com">
           <svg class="button-icon gmail-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path d="M3.5 6.7v10.2c0 .9.7 1.6 1.6 1.6h2.4V9.8L3.5 6.7Z" fill="#4285F4"/>
             <path d="M16.5 18.5h2.4c.9 0 1.6-.7 1.6-1.6V6.7l-4 3.1v8.7Z" fill="#34A853"/>
@@ -237,7 +237,7 @@
         <div class="chat-brand">
           <span class="chat-brand-mark">R</span>
           <div>
-            <p class="eyebrow">MIMO AGENT</p>
+            <p class="eyebrow">NEXT GEN</p>
             <strong>Ray AI Studio</strong>
           </div>
         </div>
@@ -254,7 +254,6 @@
         <header class="chat-header">
           <p class="eyebrow">RAY × MIMO</p>
           <h2 id="chat-title">Ray AI Chat</h2>
-          <p>保留基础文本对话能力，界面保持干净克制。</p>
         </header>
         <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
         <form id="chat-form" class="chat-composer">
@@ -373,6 +372,15 @@
     let activeChatId = null;
     let conversations = [];
 
+    const setAppViewportHeight = () => {
+      const height = window.visualViewport?.height || window.innerHeight;
+      if (height) document.documentElement.style.setProperty('--app-vh', `${height}px`);
+    };
+    setAppViewportHeight();
+    window.addEventListener('resize', setAppViewportHeight);
+    window.visualViewport?.addEventListener('resize', setAppViewportHeight);
+    window.visualViewport?.addEventListener('scroll', setAppViewportHeight);
+
     const loadConversations = () => {
       try { conversations = JSON.parse(localStorage.getItem(chatStoreKey) || '[]'); }
       catch (_) { conversations = []; }
@@ -430,7 +438,8 @@
       renderChat();
       chatModal.hidden = false;
       document.body.classList.add('modal-open');
-      chatInput?.focus();
+      setAppViewportHeight();
+      if (window.matchMedia('(min-width: 781px)').matches) chatInput?.focus();
     };
     const closeChatModal = () => {
       if (!chatModal) return;
