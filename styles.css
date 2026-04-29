@@ -52,7 +52,8 @@ body.intro-leaving .intro-stage {
 body:not(.intro-active) .intro-stage { display: none; }
 .intro-noise,
 .intro-grid,
-.intro-orb { position: absolute; inset: 0; pointer-events: none; }
+.intro-orb,
+.intro-sweep { position: absolute; inset: 0; pointer-events: none; }
 .intro-noise {
   z-index: -1;
   opacity: .16;
@@ -86,6 +87,62 @@ body:not(.intro-active) .intro-stage { display: none; }
   transform: translate(28%, 22%);
   animation: orbFloatB 8s ease-in-out infinite alternate;
 }
+.intro-preloader {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  background: #020202;
+  color: #fff;
+  animation: preloaderExit .9s 1.35s ease forwards;
+}
+.intro-preloader-mark {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.04);
+  box-shadow: 0 0 52px rgba(255,255,255,.08), inset 0 0 0 1px rgba(255,255,255,.04);
+  font: 600 24px/1 var(--mono);
+  opacity: 0;
+  transform: scale(.92);
+  animation: preloaderMark 1.15s .15s cubic-bezier(.2,.8,.2,1) both;
+}
+.intro-preloader-line {
+  position: relative;
+  width: 210px;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(255,255,255,.12);
+}
+.intro-preloader-line span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+  animation: preloaderLine 1.05s .3s cubic-bezier(.7,0,.2,1) both;
+}
+.intro-preloader p {
+  margin: 0;
+  color: rgba(255,255,255,.48);
+  font: 500 11px/1 var(--mono);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: introRise .65s .45s ease both;
+}
+.intro-sweep {
+  z-index: 4;
+  background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,.18) 48%, transparent 54%);
+  transform: translateX(-120%);
+  opacity: 0;
+  animation: sweepAcross 1.1s 1.45s cubic-bezier(.7,0,.2,1) both;
+}
 .intro-stage::before {
   content: "Ray";
   position: absolute;
@@ -99,7 +156,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   line-height: .8;
   z-index: -1;
   opacity: 0;
-  animation: ghostReveal 1.8s .45s ease both;
+  animation: ghostReveal 1.8s 1.65s ease both;
 }
 .intro-nav {
   position: absolute;
@@ -113,7 +170,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   justify-content: space-between;
   color: rgba(255,255,255,.72);
   opacity: 0;
-  animation: introDrop .9s .35s ease both;
+  animation: introDrop .9s 1.75s ease both;
 }
 .intro-logo,
 .intro-links,
@@ -166,7 +223,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: .06em;
-  animation: introRise .75s .6s ease both;
+  animation: introRise .75s 1.95s ease both;
 }
 .intro-title {
   margin: 0;
@@ -176,7 +233,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   letter-spacing: clamp(-13px, -.07em, -5px);
   font-weight: 600;
   text-shadow: 0 0 46px rgba(255,255,255,.12);
-  animation: titleReveal 1s .8s cubic-bezier(.2,.8,.2,1) both;
+  animation: titleReveal 1s 2.12s cubic-bezier(.2,.8,.2,1) both;
 }
 .intro-subtitle {
   margin-top: 28px;
@@ -185,7 +242,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   line-height: 1.1;
   letter-spacing: -1.5px;
   font-weight: 500;
-  animation: introRise .8s 1.05s ease both;
+  animation: introRise .8s 2.32s ease both;
 }
 .intro-description {
   max-width: 690px;
@@ -193,7 +250,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   color: rgba(255,255,255,.58);
   font-size: 17px;
   line-height: 1.85;
-  animation: introRise .8s 1.18s ease both;
+  animation: introRise .8s 2.48s ease both;
 }
 .intro-enter {
   margin-top: 34px;
@@ -211,7 +268,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   backdrop-filter: blur(14px);
   box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 0 36px rgba(255,255,255,.08);
   transition: transform .25s ease, border-color .25s ease, background .25s ease, box-shadow .25s ease;
-  animation: introRise .8s 1.34s ease both, buttonPulse 2.8s 2.2s ease-in-out infinite;
+  animation: introRise .8s 2.64s ease both, buttonPulse 2.8s 3.5s ease-in-out infinite;
 }
 .intro-enter:hover,
 .intro-enter:focus-visible {
@@ -238,7 +295,7 @@ body:not(.intro-active) .intro-stage { display: none; }
   font-family: var(--mono);
   font-size: 11px;
   opacity: 0;
-  animation: introRise .8s 1.45s ease both;
+  animation: introRise .8s 2.78s ease both;
 }
 .intro-footerline span {
   padding: 7px 10px;
@@ -247,6 +304,10 @@ body:not(.intro-active) .intro-stage { display: none; }
   background: rgba(255,255,255,.055);
 }
 @keyframes introBlackIn { from { opacity: 0; } to { opacity: .16; } }
+@keyframes preloaderMark { 0% { opacity: 0; transform: scale(.88); filter: blur(10px); } 45% { opacity: 1; transform: scale(1); filter: blur(0); } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
+@keyframes preloaderLine { 0% { width: 0; transform: translateX(-20%); } 70% { width: 100%; transform: translateX(0); } 100% { width: 100%; transform: translateX(110%); } }
+@keyframes preloaderExit { 0% { opacity: 1; visibility: visible; } 70% { opacity: 0; visibility: visible; } 100% { opacity: 0; visibility: hidden; pointer-events: none; } }
+@keyframes sweepAcross { 0% { opacity: 0; transform: translateX(-120%); } 20% { opacity: .55; } 100% { opacity: 0; transform: translateX(120%); } }
 @keyframes introDrop { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes introRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes titleReveal { from { opacity: 0; filter: blur(16px); transform: translateY(24px) scale(.98); } to { opacity: 1; filter: blur(0); transform: translateY(0) scale(1); } }
@@ -490,6 +551,8 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .intro-preloader,
+  .intro-sweep { display: none !important; }
   .intro-noise,
   .intro-grid,
   .intro-orb,
