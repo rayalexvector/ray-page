@@ -402,7 +402,7 @@
         <button id="cantonese-copy" class="cantonese-control" type="button">复制文字</button>
       </div>
       <div class="cantonese-live-note">
-        <span>约 2 秒切片</span>
+        <span>约 1 秒切片</span>
         <span>粤语原文 + 普通话</span>
         <span>不在浏览器本地保存音频</span>
       </div>
@@ -1227,7 +1227,7 @@
       recorder.start();
       cantoneseSegmentTimer = window.setTimeout(() => {
         if (recorder.state !== 'inactive') recorder.stop();
-      }, 2000);
+      }, 1000);
     };
     const stopCantoneseTranslator = () => {
       cantoneseRunning = false;
