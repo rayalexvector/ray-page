@@ -352,8 +352,16 @@
         <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
         <p id="chat-typing-status" class="chat-typing-status" role="status" aria-live="polite" hidden></p>
         <form id="chat-form" class="chat-composer">
-          <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="ENJOY NEXT GEN AGENT" required></textarea>
-          <button class="chat-send" type="submit" aria-label="发送消息">发送</button>
+          <div id="chat-media-preview" class="chat-media-preview" aria-live="polite" hidden></div>
+          <div class="chat-input-row">
+            <div class="chat-tool-group" aria-label="媒体输入">
+              <button id="chat-image-button" class="chat-tool-button" type="button" aria-label="上传图片">图片</button>
+              <button id="chat-voice-button" class="chat-tool-button" type="button" aria-label="录制语音">语音</button>
+            </div>
+            <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="ENJOY NEXT GEN AGENT"></textarea>
+            <button class="chat-send" type="submit" aria-label="发送消息">发送</button>
+          </div>
+          <input id="chat-image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
         </form>
       </section>
     </div>
@@ -492,7 +500,11 @@
         daily_limit_exceeded: '今日 MiMo 次数已用完。',
         rate_limited: data.retry_after ? `操作太频繁，请 ${data.retry_after} 秒后再试。` : '操作太频繁，请稍后再试。',
         channel_paused: 'MiMo 通道已暂停。',
-        payload_too_large: '消息太长，请缩短后再发送。',
+        payload_too_large: '消息或媒体太大，请缩小后再发送。',
+        unsupported_media_type: '暂时只支持 PNG/JPEG/WebP 图片和 WAV 语音。',
+        media_too_large: '媒体文件太大，请压缩后再发送。',
+        too_many_media_parts: '一次最多发送 2 个媒体内容。',
+        invalid_message_part: '媒体内容格式异常，请重新选择。',
         empty_message: '请输入要发送的内容。',
         upstream_fetch_failed: 'MiMo 服务暂时连接失败，请稍后再试。',
         upstream_error: 'MiMo 服务暂时不可用，请稍后再试。',
@@ -646,6 +658,10 @@
     const chatClosers = document.querySelectorAll('[data-close-chat]');
     const chatForm = document.getElementById('chat-form');
     const chatInput = document.getElementById('chat-input');
+    const chatImageInput = document.getElementById('chat-image-input');
+    const chatImageButton = document.getElementById('chat-image-button');
+    const chatVoiceButton = document.getElementById('chat-voice-button');
+    const chatMediaPreview = document.getElementById('chat-media-preview');
     const chatMessages = document.getElementById('chat-messages');
     const chatHistory = document.getElementById('chat-history');
     const chatNew = document.getElementById('chat-new');
@@ -656,6 +672,9 @@
     let activeChatId = null;
     let conversations = [];
     let chatBusy = false;
+    let pendingMediaItems = [];
+    let mediaRecorder = null;
+    let voiceChunks = [];
 
     const setAppViewportHeight = () => {
       const height = window.visualViewport?.height || window.innerHeight;
@@ -684,6 +703,163 @@
     };
     const activeConversation = () => conversations.find((item) => item.id === activeChatId) || conversations[0];
     const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+    const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+    const MAX_AUDIO_BYTES = 1536 * 1024;
+    const MAX_MEDIA_ITEMS = 2;
+    const formatBytes = (bytes) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+    const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('文件读取失败。'));
+      reader.readAsDataURL(file);
+    });
+    const summarizeAttachment = (item) => ({ kind: item.kind, label: item.label, name: item.name, sizeText: item.sizeText });
+    const renderAttachmentBadges = (items = []) => items.map((item) => `
+      <span class="chat-media-badge" title="${escapeHtml(item.name || item.label)}">
+        <span>${escapeHtml(item.label)}</span><small>${escapeHtml(item.sizeText || '')}</small>
+      </span>
+    `).join('');
+    const renderMediaPreview = () => {
+      if (!chatMediaPreview) return;
+      chatMediaPreview.hidden = !pendingMediaItems.length;
+      chatMediaPreview.innerHTML = pendingMediaItems.map((item, index) => `
+        <button class="chat-media-chip" type="button" data-remove-media="${index}" title="移除 ${escapeHtml(item.name || item.label)}">
+          <span>${escapeHtml(item.label)}</span>
+          <small>${escapeHtml(item.name || item.sizeText)}</small>
+          <strong>×</strong>
+        </button>
+      `).join('');
+      chatMediaPreview.querySelectorAll('[data-remove-media]').forEach((button) => {
+        button.addEventListener('click', () => {
+          pendingMediaItems.splice(Number(button.dataset.removeMedia), 1);
+          renderMediaPreview();
+        });
+      });
+    };
+    const clearPendingMedia = () => {
+      pendingMediaItems = [];
+      if (chatImageInput) chatImageInput.value = '';
+      renderMediaPreview();
+    };
+    const addPendingMedia = (item) => {
+      const sameKindIndex = pendingMediaItems.findIndex((media) => media.kind === item.kind);
+      if (sameKindIndex >= 0) pendingMediaItems.splice(sameKindIndex, 1);
+      pendingMediaItems.push(item);
+      pendingMediaItems = pendingMediaItems.slice(-MAX_MEDIA_ITEMS);
+      renderMediaPreview();
+    };
+    const readImageAttachment = async (file) => {
+      if (!file) return;
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('暂时只支持 PNG/JPEG/WebP 图片。');
+      if (file.size > MAX_IMAGE_BYTES) throw new Error('图片不能超过 2MB，请压缩后再上传。');
+      const dataUrl = await fileToDataUrl(file);
+      addPendingMedia({ kind: 'image', label: '图片', name: file.name || 'image', sizeText: formatBytes(file.size), dataUrl });
+    };
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i += 1) view.setUint8(offset + i, string.charCodeAt(i));
+    };
+    const downsampleChannel = (channel, inputRate, outputRate) => {
+      if (outputRate === inputRate) return channel;
+      const ratio = inputRate / outputRate;
+      const length = Math.round(channel.length / ratio);
+      const result = new Float32Array(length);
+      for (let i = 0; i < length; i += 1) {
+        const start = Math.floor(i * ratio);
+        const end = Math.min(Math.floor((i + 1) * ratio), channel.length);
+        let sum = 0;
+        for (let j = start; j < end; j += 1) sum += channel[j];
+        result[i] = sum / Math.max(1, end - start);
+      }
+      return result;
+    };
+    const encodeWav = (audioBuffer, outputRate = 16000) => {
+      const length = audioBuffer.length;
+      const mixed = new Float32Array(length);
+      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel += 1) {
+        const data = audioBuffer.getChannelData(channel);
+        for (let i = 0; i < length; i += 1) mixed[i] += data[i] / audioBuffer.numberOfChannels;
+      }
+      const samples = downsampleChannel(mixed, audioBuffer.sampleRate, outputRate);
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, outputRate, true);
+      view.setUint32(28, outputRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, samples.length * 2, true);
+      let offset = 44;
+      for (const sample of samples) {
+        const value = Math.max(-1, Math.min(1, sample));
+        view.setInt16(offset, value < 0 ? value * 0x8000 : value * 0x7fff, true);
+        offset += 2;
+      }
+      return new Blob([view], { type: 'audio/wav' });
+    };
+    const convertRecordingToWav = async (blob) => {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('当前浏览器不支持语音处理。');
+      const context = new AudioContextClass();
+      try {
+        const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer());
+        return encodeWav(audioBuffer, 16000);
+      } finally {
+        context.close?.();
+      }
+    };
+    const startVoiceRecording = async () => {
+      if (chatBusy || mediaRecorder) return;
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('当前浏览器不支持录音。');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.addEventListener('dataavailable', (event) => { if (event.data?.size) voiceChunks.push(event.data); });
+      mediaRecorder.addEventListener('stop', async () => {
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => track.stop());
+        const recorderBlob = new Blob(voiceChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+        mediaRecorder = null;
+        if (chatVoiceButton) chatVoiceButton.textContent = '语音';
+        try {
+          const wavBlob = await convertRecordingToWav(recorderBlob);
+          if (wavBlob.size > MAX_AUDIO_BYTES) throw new Error('语音不能超过约 30 秒，请缩短后重录。');
+          addPendingMedia({ kind: 'audio', label: '语音', name: 'voice.wav', sizeText: formatBytes(wavBlob.size), dataUrl: await fileToDataUrl(wavBlob) });
+        } catch (error) {
+          const current = activeConversation();
+          if (current) current.messages.push({ role: 'assistant', content: error.message || '语音处理失败，请重试。' });
+          renderChat();
+        }
+      });
+      mediaRecorder.start();
+      if (chatVoiceButton) chatVoiceButton.textContent = '停止';
+    };
+    const stopVoiceRecording = () => {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    };
+    const buildUserContentParts = (text, mediaItems) => {
+      const parts = [];
+      const prompt = text || (mediaItems.length ? '请根据我上传的内容回答。' : '');
+      if (prompt) parts.push({ type: 'text', text: prompt });
+      mediaItems.forEach((item) => {
+        if (item.kind === 'image') parts.push({ type: 'image_url', image_url: { url: item.dataUrl } });
+        if (item.kind === 'audio') parts.push({ type: 'audio_url', audio_url: { url: item.dataUrl } });
+      });
+      return parts;
+    };
+    const buildChatHistory = (messages, mediaItems) => messages.slice(-50).map((message, index, list) => {
+      const isLastUser = index === list.length - 1 && message.role === 'user' && mediaItems.length;
+      return {
+        role: message.role,
+        content: isLastUser ? buildUserContentParts(message.content, mediaItems) : message.content,
+      };
+    }).filter((message) => message.content && (typeof message.content === 'string' || message.content.length));
     const renderHistory = () => {
       if (!chatHistory) return;
       chatHistory.innerHTML = conversations.map((item) => `
@@ -706,7 +882,10 @@
       chatMessages.innerHTML = current.messages.map((message) => `
         <div class="chat-message is-${message.role}">
           <div class="chat-avatar">${message.role === 'user' ? '你' : 'R'}</div>
-          <div class="chat-bubble">${escapeHtml(message.content)}</div>
+          <div class="chat-bubble">
+            ${message.content ? `<div>${escapeHtml(message.content)}</div>` : ''}
+            ${message.attachments?.length ? `<div class="chat-media-badges">${renderAttachmentBadges(message.attachments)}</div>` : ''}
+          </div>
         </div>
       `).join('');
       chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -720,6 +899,9 @@
         submitButton.textContent = chatBusy ? '思考中…' : '发送';
       }
       if (chatInput) chatInput.disabled = chatBusy;
+      if (chatImageButton) chatImageButton.disabled = chatBusy;
+      if (chatImageInput) chatImageInput.disabled = chatBusy;
+      if (chatVoiceButton && !mediaRecorder) chatVoiceButton.disabled = chatBusy;
       if (chatTypingStatus) {
         chatTypingStatus.hidden = !chatBusy;
         chatTypingStatus.textContent = chatBusy ? 'MiMo 正在思考…' : '';
@@ -729,6 +911,7 @@
       const current = activeConversation();
       if (!current || chatBusy) return;
       current.messages = [];
+      clearPendingMedia();
       current.title = '新对话';
       current.updatedAt = Date.now();
       saveConversations();
@@ -778,6 +961,29 @@
       chatInput.style.height = `${Math.min(Math.max(chatInput.scrollHeight, 42), 120)}px`;
     };
     chatInput?.addEventListener('input', resizeChatInput);
+    chatImageButton?.addEventListener('click', () => {
+      if (chatBusy) return;
+      chatImageInput?.click();
+    });
+    chatImageInput?.addEventListener('change', async () => {
+      try {
+        await readImageAttachment(chatImageInput.files?.[0]);
+      } catch (error) {
+        const current = activeConversation();
+        if (current) current.messages.push({ role: 'assistant', content: error.message || '图片处理失败，请重试。' });
+        renderChat();
+      }
+    });
+    chatVoiceButton?.addEventListener('click', async () => {
+      try {
+        if (mediaRecorder) stopVoiceRecording();
+        else await startVoiceRecording();
+      } catch (error) {
+        const current = activeConversation();
+        if (current) current.messages.push({ role: 'assistant', content: error.message || '录音失败，请检查麦克风权限。' });
+        renderChat();
+      }
+    });
 
     chatForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -785,17 +991,20 @@
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
       if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证。');
       const text = chatInput?.value.trim();
+      const mediaToSend = [...pendingMediaItems];
       const current = activeConversation();
-      if (!text || !current) return;
-      current.messages.push({ role: 'user', content: text });
-      current.title = current.title === '新对话' ? text.slice(0, 18) : current.title;
+      if ((!text && !mediaToSend.length) || !current) return;
+      const displayText = text || (mediaToSend.length ? '请根据我上传的内容回答。' : '');
+      current.messages.push({ role: 'user', content: displayText, attachments: mediaToSend.map(summarizeAttachment) });
+      current.title = current.title === '新对话' ? displayText.slice(0, 18) : current.title;
       current.updatedAt = Date.now();
       chatInput.value = '';
+      clearPendingMedia();
       resizeChatInput();
       renderChat();
       setChatBusy(true);
       try {
-        const history = current.messages.slice(-50).map((message) => ({ role: message.role, content: message.content }));
+        const history = buildChatHistory(current.messages, mediaToSend);
         const response = await fetch(chatEndpoint, {
           method: 'POST',
           credentials: 'include',
