@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=chat-media-inputs" />
+  <link rel="stylesheet" href="styles.css?v=admin-dashboard" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -206,6 +206,7 @@
           <p class="eyebrow">SIGNED IN</p>
           <strong id="member-email">—</strong>
           <span id="member-quota">今日剩余额度：—</span>
+          <button id="admin-open" class="button ai-button admin-open" type="button" hidden>管理后台</button>
           <button id="logout-button" class="button secondary" type="button">退出登录</button>
         </div>
         <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
@@ -367,6 +368,49 @@
     </div>
   </div>
 
+
+  <div id="admin-modal" class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-title" hidden>
+    <div class="admin-backdrop" data-close-admin></div>
+    <section class="admin-shell" role="document">
+      <button class="admin-close" type="button" data-close-admin aria-label="关闭管理后台">×</button>
+      <header class="admin-header">
+        <p class="eyebrow">ADMIN</p>
+        <h2 id="admin-title">Ray 管理后台</h2>
+        <p>仅管理员可见。用于查看会员状态、管理邀请码和用户。</p>
+      </header>
+      <div id="admin-message" class="admin-message" role="status" aria-live="polite"></div>
+      <div id="admin-stats" class="admin-stats" aria-label="管理后台统计"></div>
+      <div class="admin-grid">
+        <section class="admin-card">
+          <div class="admin-card-head">
+            <div>
+              <p class="eyebrow">USERS</p>
+              <h3>用户管理</h3>
+            </div>
+            <button id="admin-refresh" class="admin-mini-button" type="button">刷新</button>
+          </div>
+          <div id="admin-users" class="admin-table" aria-label="用户列表"></div>
+        </section>
+        <section class="admin-card">
+          <div class="admin-card-head">
+            <div>
+              <p class="eyebrow">INVITES</p>
+              <h3>邀请码</h3>
+            </div>
+          </div>
+          <form id="admin-invite-form" class="admin-invite-form">
+            <input id="admin-invite-label" type="text" maxlength="80" placeholder="标签，例如 ray-invite" />
+            <input id="admin-invite-max" type="number" min="1" max="1000" value="1" aria-label="最大使用次数" />
+            <input id="admin-invite-days" type="number" min="0" max="365" value="30" aria-label="有效天数，0为不过期" />
+            <button class="admin-mini-button is-primary" type="submit">创建</button>
+          </form>
+          <div id="admin-invite-result" class="admin-invite-result" hidden></div>
+          <div id="admin-invites" class="admin-table" aria-label="邀请码列表"></div>
+        </section>
+      </div>
+    </section>
+  </div>
+
   <footer class="footer">
     <span>© <span id="year"></span> Ray</span>
     <span>AIAgent Product Explorer / Indie Developer</span>
@@ -473,6 +517,16 @@
     const registerForm = document.getElementById('register-form');
     const logoutButton = document.getElementById('logout-button');
     const forgotButton = document.getElementById('forgot-password');
+    const adminOpen = document.getElementById('admin-open');
+    const adminModal = document.getElementById('admin-modal');
+    const adminClosers = document.querySelectorAll('[data-close-admin]');
+    const adminStats = document.getElementById('admin-stats');
+    const adminUsers = document.getElementById('admin-users');
+    const adminInvites = document.getElementById('admin-invites');
+    const adminMessage = document.getElementById('admin-message');
+    const adminRefresh = document.getElementById('admin-refresh');
+    const adminInviteForm = document.getElementById('admin-invite-form');
+    const adminInviteResult = document.getElementById('admin-invite-result');
     const authTabs = document.querySelectorAll('[data-auth-tab]');
     const authForms = document.querySelectorAll('[data-auth-form]');
 
@@ -536,9 +590,110 @@
       const data = await response.json().catch(() => ({}));
       return { response, data };
     };
+    const isAdminUserClient = () => authState.user?.role === 'admin';
+    const showAdminMessage = (message, type = 'info') => {
+      if (!adminMessage) return;
+      adminMessage.textContent = message || '';
+      adminMessage.dataset.type = type;
+    };
+    const adminFetch = async (path, options = {}) => {
+      const response = await fetch(`${authEndpoint}${path}`, {
+        credentials: 'include',
+        ...options,
+        headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data.error || 'admin_request_failed');
+      return data;
+    };
+    const formatAdminTime = (value) => value ? new Date(Number(value) * 1000).toLocaleString('zh-CN', { hour12: false }) : '—';
+    const renderAdminStats = (stats = {}) => {
+      if (!adminStats) return;
+      const items = [
+        ['用户', stats.users_total ?? 0],
+        ['已验证', stats.users_verified ?? 0],
+        ['未验证', stats.users_unverified ?? 0],
+        ['禁用', stats.users_disabled ?? 0],
+        ['活跃会话', stats.active_sessions ?? 0],
+        ['活跃邀请码', stats.active_invites ?? 0],
+        ['今日 MiMo', stats.today_mimo_calls ?? 0],
+        ['频控行', stats.rate_limit_rows ?? 0],
+      ];
+      adminStats.innerHTML = items.map(([label, value]) => `<div class="admin-stat"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    };
+    const renderAdminUsers = (users = []) => {
+      if (!adminUsers) return;
+      if (!users.length) {
+        adminUsers.innerHTML = '<div class="admin-empty">暂无用户</div>';
+        return;
+      }
+      adminUsers.innerHTML = users.map((user) => `
+        <article class="admin-row">
+          <div>
+            <strong>${escapeHtml(user.email || '—')}</strong>
+            <span>${escapeHtml(user.role || 'member')}｜${user.email_verified ? '已验证' : '未验证'}｜今日 ${escapeHtml(user.today_mimo_count ?? 0)} 次</span>
+            <small>${user.disabled ? '已禁用' : '启用中'}｜创建 ${escapeHtml(formatAdminTime(user.created_at))}</small>
+          </div>
+          <div class="admin-actions">
+            <button type="button" data-admin-user-action="${user.disabled ? 'enable' : 'disable'}" data-email="${escapeHtml(user.email)}">${user.disabled ? '启用' : '禁用'}</button>
+            <button type="button" data-admin-user-action="delete" data-email="${escapeHtml(user.email)}" class="is-danger">删除</button>
+          </div>
+        </article>
+      `).join('');
+    };
+    const renderAdminInvites = (invites = []) => {
+      if (!adminInvites) return;
+      if (!invites.length) {
+        adminInvites.innerHTML = '<div class="admin-empty">暂无邀请码</div>';
+        return;
+      }
+      adminInvites.innerHTML = invites.map((invite) => `
+        <article class="admin-row">
+          <div>
+            <strong>${escapeHtml(invite.label || '—')}</strong>
+            <span>${invite.active ? '启用中' : '已撤销'}｜${escapeHtml(invite.used_count ?? 0)} / ${escapeHtml(invite.max_uses ?? 1)}｜hash ${escapeHtml(invite.code_hash_prefix || '—')}</span>
+            <small>过期 ${escapeHtml(formatAdminTime(invite.expires_at))}</small>
+          </div>
+          <div class="admin-actions">
+            <button type="button" data-admin-invite-action="revoke" data-id="${escapeHtml(invite.id)}" ${invite.active ? '' : 'disabled'}>撤销</button>
+          </div>
+        </article>
+      `).join('');
+    };
+    const loadAdminDashboard = async () => {
+      if (!isAdminUserClient()) return showAuthMessage('只有管理员可以打开管理后台。', 'error');
+      showAdminMessage('正在加载管理数据…');
+      try {
+        const [statsData, usersData, invitesData] = await Promise.all([
+          adminFetch('/admin/stats', { method: 'GET' }),
+          adminFetch('/admin/users?limit=80', { method: 'GET' }),
+          adminFetch('/admin/invites?limit=80', { method: 'GET' }),
+        ]);
+        renderAdminStats(statsData.stats);
+        renderAdminUsers(usersData.users);
+        renderAdminInvites(invitesData.invites);
+        showAdminMessage('管理数据已刷新。', 'success');
+      } catch (error) {
+        showAdminMessage(error.message === 'forbidden' ? '当前账号不是管理员。' : '管理数据加载失败。', 'error');
+      }
+    };
+    const openAdminModal = async () => {
+      if (!isAdminUserClient()) return showAuthMessage('只有管理员可以打开管理后台。', 'error');
+      if (!adminModal) return;
+      adminModal.hidden = false;
+      document.body.classList.add('modal-open');
+      await loadAdminDashboard();
+    };
+    const closeAdminModal = () => {
+      if (!adminModal) return;
+      adminModal.hidden = true;
+      document.body.classList.remove('modal-open');
+    };
     const renderAuthState = () => {
       const signedIn = Boolean(authState.user);
       document.body.classList.toggle('member-signed-in', signedIn);
+      document.body.classList.toggle('admin-signed-in', signedIn && isAdminUserClient());
+      if (adminOpen) adminOpen.hidden = !(signedIn && isAdminUserClient());
       if (memberStatus) {
         if (!signedIn) {
           memberStatus.textContent = '';
@@ -635,9 +790,61 @@
       }
     });
 
+    adminOpen?.addEventListener('click', openAdminModal);
+    adminClosers.forEach((button) => button.addEventListener('click', closeAdminModal));
+    adminRefresh?.addEventListener('click', loadAdminDashboard);
+    adminInviteForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!isAdminUserClient()) return showAdminMessage('当前账号不是管理员。', 'error');
+      try {
+        const payload = {
+          label: document.getElementById('admin-invite-label')?.value.trim(),
+          max_uses: Number(document.getElementById('admin-invite-max')?.value || 1),
+          days: Number(document.getElementById('admin-invite-days')?.value || 30),
+        };
+        const data = await adminFetch('/admin/invites/create', { method: 'POST', body: JSON.stringify(payload) });
+        if (adminInviteResult) {
+          adminInviteResult.hidden = false;
+          adminInviteResult.textContent = `新邀请码：${data.invite.invite_code}`;
+        }
+        showAdminMessage('邀请码已创建，明文只显示一次。', 'success');
+        await loadAdminDashboard();
+      } catch (_) {
+        showAdminMessage('邀请码创建失败。', 'error');
+      }
+    });
+    adminUsers?.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-admin-user-action]');
+      if (!button) return;
+      const action = button.dataset.adminUserAction;
+      const email = button.dataset.email;
+      if (!email) return;
+      if (['delete', 'disable'].includes(action) && !window.confirm(`确认${action === 'delete' ? '删除' : '禁用'} ${email}？`)) return;
+      try {
+        await adminFetch(`/admin/users/${action}`, { method: 'POST', body: JSON.stringify({ email }) });
+        showAdminMessage('用户操作已完成。', 'success');
+        await loadAdminDashboard();
+      } catch (error) {
+        showAdminMessage(error.message === 'cannot_modify_self' ? '不能禁用或删除当前管理员账号。' : '用户操作失败。', 'error');
+      }
+    });
+    adminInvites?.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-admin-invite-action="revoke"]');
+      if (!button || button.disabled) return;
+      if (!window.confirm('确认撤销这个邀请码？')) return;
+      try {
+        await adminFetch('/admin/invites/revoke', { method: 'POST', body: JSON.stringify({ id: button.dataset.id }) });
+        showAdminMessage('邀请码已撤销。', 'success');
+        await loadAdminDashboard();
+      } catch (_) {
+        showAdminMessage('邀请码撤销失败。', 'error');
+      }
+    });
+
     logoutButton?.addEventListener('click', async () => {
       await authFetch('/auth/logout', { method: 'POST', body: '{}' });
       authState = { user: null, daily: null };
+      closeAdminModal();
       renderAuthState();
       showAuthMessage('已退出登录。', 'success');
     });
