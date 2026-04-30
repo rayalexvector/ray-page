@@ -296,6 +296,8 @@
           </div>
         </div>
         <button id="chat-new" class="chat-new" type="button">+ 新对话</button>
+        <button id="chat-clear" class="chat-clear" type="button">清空当前对话</button>
+        <div id="chat-quota-status" class="chat-quota-status">今日额度：—</div>
         <div id="chat-history" class="chat-history" aria-label="本地历史对话"></div>
         <p id="chat-member-note" class="chat-sidebar-note">请先在首页登录会员账号。</p>
       </aside>
@@ -306,6 +308,7 @@
           <h2 id="chat-title">Ray AI Chat</h2>
         </header>
         <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+        <p id="chat-typing-status" class="chat-typing-status" role="status" aria-live="polite" hidden></p>
         <form id="chat-form" class="chat-composer">
           <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="ENJOY NEXT GEN AGENT" required></textarea>
           <button class="chat-send" type="submit" aria-label="发送消息">发送</button>
@@ -428,6 +431,36 @@
       authMessage.textContent = message || '';
       authMessage.dataset.type = type;
     };
+    const formatDailySummary = (daily) => {
+      if (!daily) return '今日额度：—';
+      if (daily.unlimited || daily.limit === null) return `今日已用：${daily.used ?? 0}｜管理员额度：无限`;
+      const used = daily.used ?? 0;
+      const limit = daily.limit ?? 50;
+      const remaining = daily.remaining ?? Math.max(0, limit - used);
+      return `今日已用：${used} / ${limit}｜剩余：${remaining} 次`;
+    };
+    const renderChatQuota = () => {
+      const quota = document.getElementById('chat-quota-status');
+      if (quota) quota.textContent = formatDailySummary(authState.daily);
+    };
+    const chatErrorMessage = (error, data = {}) => {
+      const map = {
+        not_authenticated: '请先登录会员账号。',
+        email_not_verified: '请先完成邮箱验证。',
+        daily_limit_exceeded: '今日 MiMo 次数已用完。',
+        rate_limited: data.retry_after ? `操作太频繁，请 ${data.retry_after} 秒后再试。` : '操作太频繁，请稍后再试。',
+        channel_paused: 'MiMo 通道已暂停。',
+        payload_too_large: '消息太长，请缩短后再发送。',
+        empty_message: '请输入要发送的内容。',
+        upstream_fetch_failed: 'MiMo 服务暂时连接失败，请稍后再试。',
+        upstream_error: 'MiMo 服务暂时不可用，请稍后再试。',
+        upstream_invalid_json: 'MiMo 返回异常，请稍后再试。',
+        empty_upstream_content: 'MiMo 没有返回有效内容，请换个问法再试。',
+        origin_not_allowed: '请求来源异常，请刷新页面后重试。',
+        internal_error: '服务暂时不可用，请稍后再试。',
+      };
+      return map[error] || '连接失败，请稍后再试。';
+    };
     const setAuthTab = (tab) => {
       authTabs.forEach((button) => button.classList.toggle('is-active', button.dataset.authTab === tab));
       authForms.forEach((form) => form.classList.toggle('is-active', form.dataset.authForm === tab));
@@ -464,11 +497,8 @@
       }
       if (memberSession) memberSession.hidden = !signedIn;
       if (memberEmail) memberEmail.textContent = authState.user?.email || '—';
-      if (memberQuota) {
-        const remaining = authState.daily?.remaining ?? '—';
-        const limit = authState.daily?.limit ?? 50;
-        memberQuota.textContent = `今日 MiMo 剩余额度：${remaining} / ${limit}`;
-      }
+      if (memberQuota) memberQuota.textContent = formatDailySummary(authState.daily).replace('今日已用', '今日 MiMo 已用');
+      renderChatQuota();
       const note = document.getElementById('chat-member-note');
       if (note) note.textContent = signedIn ? `已登录：${authState.user.email}` : '请先在首页登录会员账号。';
     };
@@ -500,7 +530,9 @@
       }
       const message = data.error === 'email_not_verified'
         ? '邮箱还未验证。请先点击邮件里的验证链接，或使用“重新发送验证邮件”。'
-        : '登录失败，请检查邮箱和密码。';
+        : data.error === 'rate_limited'
+          ? chatErrorMessage('rate_limited', data)
+          : '登录失败，请检查邮箱和密码。';
       showAuthMessage(message, 'error');
     });
 
@@ -529,6 +561,7 @@
         email_already_registered: '这个邮箱已经注册，请直接登录。',
         invalid_password: '密码至少需要 8 位。',
         email_send_failed: '账号已创建，但验证邮件暂时发送失败。等邮件服务恢复后请重新发送验证邮件。',
+        rate_limited: chatErrorMessage('rate_limited', data),
       };
       showAuthMessage(map[data.error] || '注册失败，请稍后再试。', data.registered ? 'warn' : 'error');
     });
@@ -544,7 +577,7 @@
       if (response.ok && data.ok) {
         showAuthMessage(data.already_verified ? '邮箱已经验证，可以直接登录。' : '如果邮箱存在，验证邮件已发送。', 'success');
       } else {
-        showAuthMessage('邮件暂时发送失败，请稍后再试。', 'error');
+        showAuthMessage(data.error === 'rate_limited' ? chatErrorMessage('rate_limited', data) : '邮件暂时发送失败，请稍后再试。', 'error');
       }
     });
 
@@ -574,10 +607,13 @@
     const chatMessages = document.getElementById('chat-messages');
     const chatHistory = document.getElementById('chat-history');
     const chatNew = document.getElementById('chat-new');
+    const chatClear = document.getElementById('chat-clear');
+    const chatTypingStatus = document.getElementById('chat-typing-status');
     const chatEndpoint = 'https://api.rayalex.cn/chat';
     const chatStoreKey = 'ray-mimo-chat-history-v1';
     let activeChatId = null;
     let conversations = [];
+    let chatBusy = false;
 
     const setAppViewportHeight = () => {
       const height = window.visualViewport?.height || window.innerHeight;
@@ -633,7 +669,30 @@
       `).join('');
       chatMessages.scrollTop = chatMessages.scrollHeight;
     };
-    const renderChat = () => { renderHistory(); renderMessages(); };
+    const renderChat = () => { renderHistory(); renderMessages(); renderChatQuota(); };
+    const setChatBusy = (busy) => {
+      chatBusy = Boolean(busy);
+      const submitButton = chatForm?.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = chatBusy;
+        submitButton.textContent = chatBusy ? '思考中…' : '发送';
+      }
+      if (chatInput) chatInput.disabled = chatBusy;
+      if (chatTypingStatus) {
+        chatTypingStatus.hidden = !chatBusy;
+        chatTypingStatus.textContent = chatBusy ? 'MiMo 正在思考…' : '';
+      }
+    };
+    const clearCurrentConversation = () => {
+      const current = activeConversation();
+      if (!current || chatBusy) return;
+      current.messages = [];
+      current.title = '新对话';
+      current.updatedAt = Date.now();
+      saveConversations();
+      renderChat();
+      chatInput?.focus();
+    };
     const closeChatModal = () => {
       if (!chatModal) return;
       chatModal.hidden = true;
@@ -661,7 +720,12 @@
     chatClosers.forEach((button) => button.addEventListener('click', closeChatModal));
     chatNew?.addEventListener('click', () => {
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
+      if (chatBusy) return;
       createConversation(true);
+    });
+    chatClear?.addEventListener('click', () => {
+      if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
+      clearCurrentConversation();
     });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && chatModal && !chatModal.hidden) closeChatModal();
@@ -675,19 +739,19 @@
 
     chatForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (chatBusy) return;
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
       if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证。');
       const text = chatInput?.value.trim();
       const current = activeConversation();
       if (!text || !current) return;
-      const submitButton = chatForm.querySelector('button[type="submit"]');
       current.messages.push({ role: 'user', content: text });
       current.title = current.title === '新对话' ? text.slice(0, 18) : current.title;
       current.updatedAt = Date.now();
       chatInput.value = '';
       resizeChatInput();
       renderChat();
-      submitButton?.setAttribute('disabled', 'true');
+      setChatBusy(true);
       try {
         const history = current.messages.slice(-50).map((message) => ({ role: message.role, content: message.content }));
         const response = await fetch(chatEndpoint, {
@@ -697,13 +761,7 @@
           body: JSON.stringify({ messages: history, max_tokens: 1536 }),
         });
         const data = await response.json();
-        if (!response.ok || !data.ok) {
-          if (data.error === 'not_authenticated') throw new Error('请先登录会员账号。');
-          if (data.error === 'email_not_verified') throw new Error('请先完成邮箱验证。');
-          if (data.error === 'daily_limit_exceeded') throw new Error('今日 MiMo 次数已用完。');
-          if (data.error === 'channel_paused') throw new Error('MiMo 通道已暂停。');
-          throw new Error('连接失败，请稍后再试。');
-        }
+        if (!response.ok || !data.ok) throw new Error(chatErrorMessage(data.error, data));
         authState.daily = data.daily || authState.daily;
         renderAuthState();
         current.messages.push({ role: 'assistant', content: data.reply || '没有收到有效回复。' });
@@ -715,7 +773,7 @@
         current.updatedAt = Date.now();
         saveConversations();
         renderChat();
-        submitButton?.removeAttribute('disabled');
+        setChatBusy(false);
       }
     });
   </script>
