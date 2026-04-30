@@ -120,8 +120,8 @@
     <section id="member-access" class="section-shell member-section">
       <div class="member-copy">
         <p class="eyebrow">MEMBER ACCESS</p>
-        <h2>登录后进入 Ray AI Chat</h2>
-        <p>使用邀请码 + 邮箱 + 密码注册。邮箱验证完成后，即可进入 MiMo 通道；每日默认 50 次对话额度。</p>
+        <h2>登录以使用Ray AI Chat</h2>
+        <p>使用邀请码注册，即可进入Mimo通道。每日默认50次对话额度。</p>
         <div id="member-status" class="member-status">正在检查登录状态…</div>
       </div>
       <div class="member-panel" aria-label="会员登录与注册">
@@ -453,9 +453,14 @@
       const signedIn = Boolean(authState.user);
       document.body.classList.toggle('member-signed-in', signedIn);
       if (memberStatus) {
-        if (!signedIn) memberStatus.textContent = '未登录：请先登录或注册，再进入 Ray AI Chat。';
-        else if (!authState.user.email_verified) memberStatus.textContent = '已登录，但邮箱还未验证。请先完成邮箱验证。';
-        else memberStatus.textContent = '已登录：可以进入 Ray AI Chat。';
+        if (!signedIn) {
+          memberStatus.textContent = '';
+          memberStatus.hidden = true;
+        } else {
+          memberStatus.hidden = false;
+          if (!authState.user.email_verified) memberStatus.textContent = '已登录，但邮箱还未验证。请先完成邮箱验证。';
+          else memberStatus.textContent = '已登录：可以进入 Ray AI Chat。';
+        }
       }
       if (memberSession) memberSession.hidden = !signedIn;
       if (memberEmail) memberEmail.textContent = authState.user?.email || '—';
