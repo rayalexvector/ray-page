@@ -70,6 +70,7 @@
       <div class="nav-links">
         <a href="#focus">Focus</a>
         <a href="#work">Work</a>
+        <a href="#member-access">Member</a>
         <a href="#contact">Contact</a>
       </div>
     </nav>
@@ -113,6 +114,59 @@
           <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5l1.42 5.04L18.5 9l-5.08 1.46L12 15.5l-1.42-5.04L5.5 9l5.08-1.46L12 2.5Zm6.2 9.8.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7ZM6 13l1.05 3.2L10.25 17l-3.2.8L6 21l-1.05-3.2-3.2-.8 3.2-.8L6 13Z"/></svg>
           <span>AI Chat</span>
         </button>
+      </div>
+    </section>
+
+    <section id="member-access" class="section-shell member-section">
+      <div class="member-copy">
+        <p class="eyebrow">MEMBER ACCESS</p>
+        <h2>登录后进入 Ray AI Chat</h2>
+        <p>使用邀请码 + 邮箱 + 密码注册。邮箱验证完成后，即可进入 MiMo 通道；每日默认 50 次对话额度。</p>
+        <div id="member-status" class="member-status">正在检查登录状态…</div>
+      </div>
+      <div class="member-panel" aria-label="会员登录与注册">
+        <div class="member-tabs" role="tablist" aria-label="登录或注册">
+          <button id="member-tab-login" class="member-tab is-active" type="button" data-auth-tab="login">登录</button>
+          <button id="member-tab-register" class="member-tab" type="button" data-auth-tab="register">注册</button>
+        </div>
+        <form id="login-form" class="member-form is-active" data-auth-form="login">
+          <label>
+            <span>邮箱</span>
+            <input id="login-email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          </label>
+          <label>
+            <span>密码</span>
+            <input id="login-password" type="password" autocomplete="current-password" placeholder="至少 8 位" required />
+          </label>
+          <button class="button ai-button member-submit" type="submit">登录</button>
+          <button id="forgot-password" class="member-link" type="button">忘记密码 / 重新发送验证邮件</button>
+        </form>
+        <form id="register-form" class="member-form" data-auth-form="register">
+          <label>
+            <span>邀请码</span>
+            <input id="register-invite" type="password" autocomplete="off" placeholder="RAY-XXXX-XXXX-XXXX" required />
+          </label>
+          <label>
+            <span>邮箱</span>
+            <input id="register-email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          </label>
+          <label>
+            <span>密码</span>
+            <input id="register-password" type="password" autocomplete="new-password" placeholder="至少 8 位" minlength="8" required />
+          </label>
+          <label>
+            <span>确认密码</span>
+            <input id="register-password-confirm" type="password" autocomplete="new-password" placeholder="再次输入密码" minlength="8" required />
+          </label>
+          <button class="button ai-button member-submit" type="submit">创建账号</button>
+        </form>
+        <div class="member-session" id="member-session" hidden>
+          <p class="eyebrow">SIGNED IN</p>
+          <strong id="member-email">—</strong>
+          <span id="member-quota">今日剩余额度：—</span>
+          <button id="logout-button" class="button secondary" type="button">退出登录</button>
+        </div>
+        <p id="auth-message" class="auth-message" role="status" aria-live="polite"></p>
       </div>
     </section>
 
@@ -243,11 +297,7 @@
         </div>
         <button id="chat-new" class="chat-new" type="button">+ 新对话</button>
         <div id="chat-history" class="chat-history" aria-label="本地历史对话"></div>
-        <label class="chat-invite">
-          <span>邀请码</span>
-          <input id="chat-invite" type="password" autocomplete="off" placeholder="RAY-XXXX-XXXX-XXXX" />
-        </label>
-        <p class="chat-sidebar-note">历史和邀请码仅保存在当前浏览器，不上传服务器。</p>
+        <p id="chat-member-note" class="chat-sidebar-note">请先在首页登录会员账号。</p>
       </aside>
       <section class="chat-main" aria-label="AI Chat 主窗口">
         <button class="chat-close" type="button" data-close-chat aria-label="关闭 AI Chat">×</button>
@@ -357,6 +407,160 @@
       if (event.key === 'Escape' && wechatModal && !wechatModal.hidden) closeWechatModal();
     });
 
+    const authEndpoint = 'https://api.rayalex.cn';
+    let authState = { user: null, daily: null };
+
+    const memberSection = document.getElementById('member-access');
+    const memberStatus = document.getElementById('member-status');
+    const memberSession = document.getElementById('member-session');
+    const memberEmail = document.getElementById('member-email');
+    const memberQuota = document.getElementById('member-quota');
+    const authMessage = document.getElementById('auth-message');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const logoutButton = document.getElementById('logout-button');
+    const forgotButton = document.getElementById('forgot-password');
+    const authTabs = document.querySelectorAll('[data-auth-tab]');
+    const authForms = document.querySelectorAll('[data-auth-form]');
+
+    const showAuthMessage = (message, type = 'info') => {
+      if (!authMessage) return;
+      authMessage.textContent = message || '';
+      authMessage.dataset.type = type;
+    };
+    const setAuthTab = (tab) => {
+      authTabs.forEach((button) => button.classList.toggle('is-active', button.dataset.authTab === tab));
+      authForms.forEach((form) => form.classList.toggle('is-active', form.dataset.authForm === tab));
+    };
+    authTabs.forEach((button) => button.addEventListener('click', () => setAuthTab(button.dataset.authTab)));
+    const scrollToMemberAccess = (message) => {
+      closeChatModal();
+      setAuthTab('login');
+      if (message) showAuthMessage(message, 'warn');
+      memberSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.setTimeout(() => document.getElementById('login-email')?.focus(), 450);
+    };
+    const authFetch = async (path, options = {}) => {
+      const response = await fetch(`${authEndpoint}${path}`, {
+        credentials: 'include',
+        ...options,
+        headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+      });
+      const data = await response.json().catch(() => ({}));
+      return { response, data };
+    };
+    const renderAuthState = () => {
+      const signedIn = Boolean(authState.user);
+      document.body.classList.toggle('member-signed-in', signedIn);
+      if (memberStatus) {
+        if (!signedIn) memberStatus.textContent = '未登录：请先登录或注册，再进入 Ray AI Chat。';
+        else if (!authState.user.email_verified) memberStatus.textContent = '已登录，但邮箱还未验证。请先完成邮箱验证。';
+        else memberStatus.textContent = '已登录：可以进入 Ray AI Chat。';
+      }
+      if (memberSession) memberSession.hidden = !signedIn;
+      if (memberEmail) memberEmail.textContent = authState.user?.email || '—';
+      if (memberQuota) {
+        const remaining = authState.daily?.remaining ?? '—';
+        const limit = authState.daily?.limit ?? 50;
+        memberQuota.textContent = `今日 MiMo 剩余额度：${remaining} / ${limit}`;
+      }
+      const note = document.getElementById('chat-member-note');
+      if (note) note.textContent = signedIn ? `已登录：${authState.user.email}` : '请先在首页登录会员账号。';
+    };
+    const refreshAuth = async () => {
+      try {
+        const { response, data } = await authFetch('/auth/me', { method: 'GET', headers: {} });
+        if (response.ok && data.ok) authState = { user: data.user, daily: data.daily };
+        else authState = { user: null, daily: null };
+      } catch (_) {
+        authState = { user: null, daily: null };
+      }
+      renderAuthState();
+      return authState;
+    };
+
+    loginForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showAuthMessage('正在登录…');
+      const payload = {
+        email: document.getElementById('login-email')?.value.trim(),
+        password: document.getElementById('login-password')?.value || '',
+      };
+      const { response, data } = await authFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+      if (response.ok && data.ok) {
+        authState = { user: data.user, daily: data.daily };
+        renderAuthState();
+        showAuthMessage('登录成功，可以进入 Ray AI Chat。', 'success');
+        return;
+      }
+      const message = data.error === 'email_not_verified'
+        ? '邮箱还未验证。请先点击邮件里的验证链接，或使用“重新发送验证邮件”。'
+        : '登录失败，请检查邮箱和密码。';
+      showAuthMessage(message, 'error');
+    });
+
+    registerForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const password = document.getElementById('register-password')?.value || '';
+      const confirm = document.getElementById('register-password-confirm')?.value || '';
+      if (password !== confirm) {
+        showAuthMessage('两次输入的密码不一致。', 'error');
+        return;
+      }
+      showAuthMessage('正在创建账号…');
+      const payload = {
+        invite_code: document.getElementById('register-invite')?.value.trim(),
+        email: document.getElementById('register-email')?.value.trim(),
+        password,
+      };
+      const { response, data } = await authFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
+      if (response.ok && data.ok) {
+        setAuthTab('login');
+        showAuthMessage('账号已创建。请检查邮箱并点击验证链接，然后登录。', 'success');
+        return;
+      }
+      const map = {
+        invalid_invite_code: '邀请码无效或已用尽。',
+        email_already_registered: '这个邮箱已经注册，请直接登录。',
+        invalid_password: '密码至少需要 8 位。',
+        email_send_failed: '账号已创建，但验证邮件暂时发送失败。等邮件服务恢复后请重新发送验证邮件。',
+      };
+      showAuthMessage(map[data.error] || '注册失败，请稍后再试。', data.registered ? 'warn' : 'error');
+    });
+
+    forgotButton?.addEventListener('click', async () => {
+      const email = document.getElementById('login-email')?.value.trim() || document.getElementById('register-email')?.value.trim();
+      if (!email) {
+        showAuthMessage('请先填写邮箱。', 'warn');
+        return;
+      }
+      showAuthMessage('正在发送邮件…');
+      const { response, data } = await authFetch('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
+      if (response.ok && data.ok) {
+        showAuthMessage(data.already_verified ? '邮箱已经验证，可以直接登录。' : '如果邮箱存在，验证邮件已发送。', 'success');
+      } else {
+        showAuthMessage('邮件暂时发送失败，请稍后再试。', 'error');
+      }
+    });
+
+    logoutButton?.addEventListener('click', async () => {
+      await authFetch('/auth/logout', { method: 'POST', body: '{}' });
+      authState = { user: null, daily: null };
+      renderAuthState();
+      showAuthMessage('已退出登录。', 'success');
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyToken = urlParams.get('verify_email');
+    if (verifyToken) {
+      authFetch('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token: verifyToken }) })
+        .then(({ response, data }) => {
+          memberSection?.scrollIntoView({ block: 'start' });
+          showAuthMessage(response.ok && data.ok ? '邮箱验证成功，现在可以登录。' : '邮箱验证链接无效或已过期。', response.ok && data.ok ? 'success' : 'error');
+        });
+    }
+    refreshAuth();
+
     const chatModal = document.getElementById('chat-modal');
     const chatOpeners = document.querySelectorAll('[data-open-chat]');
     const chatClosers = document.querySelectorAll('[data-close-chat]');
@@ -365,10 +569,8 @@
     const chatMessages = document.getElementById('chat-messages');
     const chatHistory = document.getElementById('chat-history');
     const chatNew = document.getElementById('chat-new');
-    const chatInviteInput = document.getElementById('chat-invite');
     const chatEndpoint = 'https://api.rayalex.cn/chat';
     const chatStoreKey = 'ray-mimo-chat-history-v1';
-    const chatInviteKey = 'ray-mimo-invite-code-v1';
     let activeChatId = null;
     let conversations = [];
 
@@ -408,10 +610,7 @@
         </button>
       `).join('');
       chatHistory.querySelectorAll('[data-chat-id]').forEach((button) => {
-        button.addEventListener('click', () => {
-          activeChatId = button.getAttribute('data-chat-id');
-          renderChat();
-        });
+        button.addEventListener('click', () => { activeChatId = button.getAttribute('data-chat-id'); renderChat(); });
       });
     };
     const renderMessages = () => {
@@ -430,25 +629,35 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     };
     const renderChat = () => { renderHistory(); renderMessages(); };
-
-    const openChatModal = () => {
+    const closeChatModal = () => {
+      if (!chatModal) return;
+      chatModal.hidden = true;
+      document.body.classList.remove('modal-open');
+    };
+    const openChatModal = async () => {
+      await refreshAuth();
+      if (!authState.user) {
+        scrollToMemberAccess('请先登录或注册会员账号，再进入 Ray AI Chat。');
+        return;
+      }
+      if (!authState.user.email_verified) {
+        scrollToMemberAccess('请先完成邮箱验证，再进入 Ray AI Chat。');
+        return;
+      }
       if (!chatModal) return;
       loadConversations();
-      if (chatInviteInput) chatInviteInput.value = localStorage.getItem(chatInviteKey) || '';
       renderChat();
       chatModal.hidden = false;
       document.body.classList.add('modal-open');
       setAppViewportHeight();
       if (window.matchMedia('(min-width: 781px)').matches) chatInput?.focus();
     };
-    const closeChatModal = () => {
-      if (!chatModal) return;
-      chatModal.hidden = true;
-      document.body.classList.remove('modal-open');
-    };
     chatOpeners.forEach((button) => button.addEventListener('click', openChatModal));
     chatClosers.forEach((button) => button.addEventListener('click', closeChatModal));
-    chatNew?.addEventListener('click', () => createConversation(true));
+    chatNew?.addEventListener('click', () => {
+      if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
+      createConversation(true);
+    });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && chatModal && !chatModal.hidden) closeChatModal();
     });
@@ -458,23 +667,14 @@
       chatInput.style.height = `${Math.min(Math.max(chatInput.scrollHeight, 42), 120)}px`;
     };
     chatInput?.addEventListener('input', resizeChatInput);
-    chatInviteInput?.addEventListener('change', () => {
-      localStorage.setItem(chatInviteKey, chatInviteInput.value.trim());
-    });
 
     chatForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
+      if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证。');
       const text = chatInput?.value.trim();
-      const inviteCode = chatInviteInput?.value.trim() || localStorage.getItem(chatInviteKey) || '';
       const current = activeConversation();
       if (!text || !current) return;
-      if (!inviteCode) {
-        current.messages.push({ role: 'assistant', content: '请先输入邀请码。' });
-        renderChat();
-        chatInviteInput?.focus();
-        return;
-      }
-      localStorage.setItem(chatInviteKey, inviteCode);
       const submitButton = chatForm.querySelector('button[type="submit"]');
       current.messages.push({ role: 'user', content: text });
       current.title = current.title === '新对话' ? text.slice(0, 18) : current.title;
@@ -487,17 +687,25 @@
         const history = current.messages.slice(-50).map((message) => ({ role: message.role, content: message.content }));
         const response = await fetch(chatEndpoint, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-ray-invite-code': inviteCode },
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ messages: history, max_tokens: 1536 }),
         });
         const data = await response.json();
         if (!response.ok || !data.ok) {
-          const message = data.error === 'invalid_invite_code' ? '邀请码无效或已作废。' : (data.error === 'channel_paused' ? 'MiMo 通道已暂停。' : '连接失败，请稍后再试。');
-          throw new Error(message);
+          if (data.error === 'not_authenticated') throw new Error('请先登录会员账号。');
+          if (data.error === 'email_not_verified') throw new Error('请先完成邮箱验证。');
+          if (data.error === 'daily_limit_exceeded') throw new Error('今日 MiMo 次数已用完。');
+          if (data.error === 'channel_paused') throw new Error('MiMo 通道已暂停。');
+          throw new Error('连接失败，请稍后再试。');
         }
+        authState.daily = data.daily || authState.daily;
+        renderAuthState();
         current.messages.push({ role: 'assistant', content: data.reply || '没有收到有效回复。' });
       } catch (error) {
-        current.messages.push({ role: 'assistant', content: error.message || '连接失败，请稍后再试。' });
+        const message = error.message || '连接失败，请稍后再试。';
+        current.messages.push({ role: 'assistant', content: message });
+        if (message.includes('登录') || message.includes('验证')) window.setTimeout(() => scrollToMemberAccess(message), 450);
       } finally {
         current.updatedAt = Date.now();
         saveConversations();
