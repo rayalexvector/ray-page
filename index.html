@@ -278,6 +278,24 @@
             <strong>AI API → WeChat → Tools → Skills</strong>
           </div>
         </article>
+
+        <article class="panel product-panel">
+          <p class="eyebrow">LIVE TOOL</p>
+          <h3>粤语实时传译</h3>
+          <p>
+            面向网页的实时语音工具。打开麦克风后按短片段识别粤语语音，同时输出粤语原文和普通话文字，
+            适合会议、直播和日常沟通中的快速字幕转换。
+          </p>
+          <div class="product-meta" aria-label="粤语实时传译工具信息">
+            <span>Cantonese Speech</span>
+            <span>Mandarin Text</span>
+            <span>Realtime Captions</span>
+          </div>
+          <button class="project-link project-link-button" type="button" data-open-translator>
+            <span>Open tool</span>
+            <strong>开始粤语 → 普通话实时传译</strong>
+          </button>
+        </article>
       </div>
     </section>
 
@@ -366,6 +384,32 @@
         </form>
       </section>
     </div>
+  </div>
+
+  <div id="cantonese-modal" class="cantonese-modal" role="dialog" aria-modal="true" aria-labelledby="cantonese-title" hidden>
+    <div class="cantonese-backdrop" data-close-translator></div>
+    <section class="cantonese-shell" role="document">
+      <button class="cantonese-close" type="button" data-close-translator aria-label="关闭粤语实时传译">×</button>
+      <header class="cantonese-header">
+        <p class="eyebrow">CANTONESE LIVE</p>
+        <h2 id="cantonese-title">粤语实时传译</h2>
+        <p>网页麦克风实时采集粤语短片段，输出「粤语原文」和「普通话文字」。默认不保存音频。</p>
+      </header>
+      <div id="cantonese-status" class="cantonese-status" role="status" aria-live="polite">登录会员后可使用。点击开始后浏览器会请求麦克风权限。</div>
+      <div class="cantonese-controls" aria-label="粤语实时传译控制">
+        <button id="cantonese-start" class="cantonese-control is-primary" type="button">开始传译</button>
+        <button id="cantonese-clear" class="cantonese-control" type="button">清空字幕</button>
+        <button id="cantonese-copy" class="cantonese-control" type="button">复制文字</button>
+      </div>
+      <div class="cantonese-live-note">
+        <span>约 2 秒切片</span>
+        <span>粤语原文 + 普通话</span>
+        <span>不在浏览器本地保存音频</span>
+      </div>
+      <div id="cantonese-transcripts" class="cantonese-transcripts" aria-live="polite">
+        <div class="cantonese-empty">等待开始传译。</div>
+      </div>
+    </section>
   </div>
 
 
@@ -875,13 +919,30 @@
     const chatClear = document.getElementById('chat-clear');
     const chatTypingStatus = document.getElementById('chat-typing-status');
     const chatEndpoint = 'https://api.rayalex.cn/chat';
+    const cantoneseEndpoint = 'https://api.rayalex.cn/cantonese-transcribe';
     const chatStoreKey = 'ray-mimo-chat-history-v1';
+    const cantoneseModal = document.getElementById('cantonese-modal');
+    const cantoneseOpeners = document.querySelectorAll('[data-open-translator]');
+    const cantoneseClosers = document.querySelectorAll('[data-close-translator]');
+    const cantoneseStart = document.getElementById('cantonese-start');
+    const cantoneseClear = document.getElementById('cantonese-clear');
+    const cantoneseCopy = document.getElementById('cantonese-copy');
+    const cantoneseStatus = document.getElementById('cantonese-status');
+    const cantoneseTranscripts = document.getElementById('cantonese-transcripts');
     let activeChatId = null;
     let conversations = [];
     let chatBusy = false;
     let pendingMediaItems = [];
     let mediaRecorder = null;
     let voiceChunks = [];
+    let cantoneseRecorder = null;
+    let cantoneseStream = null;
+    let cantoneseChunks = [];
+    let cantoneseRunning = false;
+    let cantoneseSegmentTimer = null;
+    let cantoneseSegmentIndex = 0;
+    let cantoneseInFlight = 0;
+    let cantoneseEntries = [];
 
     const setAppViewportHeight = () => {
       const height = window.visualViewport?.height || window.innerHeight;
@@ -1060,6 +1121,177 @@
       });
       return parts;
     };
+    const setCantoneseStatus = (message, type = 'info') => {
+      if (!cantoneseStatus) return;
+      cantoneseStatus.textContent = message;
+      cantoneseStatus.dataset.type = type;
+    };
+    const renderCantoneseEntries = () => {
+      if (!cantoneseTranscripts) return;
+      if (!cantoneseEntries.length) {
+        cantoneseTranscripts.innerHTML = '<div class="cantonese-empty">等待开始传译。</div>';
+        return;
+      }
+      cantoneseTranscripts.innerHTML = cantoneseEntries.map((entry) => `
+        <article class="cantonese-entry${entry.status === 'error' ? ' is-error' : ''}">
+          <div class="cantonese-entry-head">
+            <span>#${escapeHtml(entry.index)}</span>
+            <small>${escapeHtml(entry.label || entry.statusText || '识别中…')}</small>
+          </div>
+          <div class="cantonese-transcript-grid">
+            <div>
+              <span>粤语原文</span>
+              <p>${escapeHtml(entry.cantonese || '—')}</p>
+            </div>
+            <div>
+              <span>普通话文字</span>
+              <p>${escapeHtml(entry.mandarin || '—')}</p>
+            </div>
+          </div>
+        </article>
+      `).join('');
+      cantoneseTranscripts.scrollTop = cantoneseTranscripts.scrollHeight;
+    };
+    const parseCantoneseResult = (reply = '') => {
+      const text = String(reply || '').trim();
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          const data = JSON.parse(match[0]);
+          return {
+            cantonese: String(data.cantonese || data.yue || data.original || '').trim(),
+            mandarin: String(data.mandarin || data.putonghua || data.standard || '').trim(),
+          };
+        } catch (_) {}
+      }
+      return { cantonese: '', mandarin: text };
+    };
+    const processCantoneseSegment = async (blob, index) => {
+      if (!blob || blob.size < 800) return;
+      const entry = { id: `${Date.now()}-${index}`, index, label: '识别中…', status: 'pending', cantonese: '', mandarin: '' };
+      cantoneseEntries.push(entry);
+      cantoneseEntries = cantoneseEntries.slice(-30);
+      renderCantoneseEntries();
+      cantoneseInFlight += 1;
+      setCantoneseStatus(`正在识别第 ${index} 段粤语…`, 'info');
+      try {
+        const wavBlob = await convertRecordingToWav(blob);
+        if (wavBlob.size > MAX_AUDIO_BYTES) throw new Error('单段音频过长，请稍微放慢或重试。');
+        const audioDataUrl = await fileToDataUrl(wavBlob);
+        const response = await fetch(cantoneseEndpoint, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            audio: audioDataUrl,
+            max_tokens: 700,
+            temperature: 0.1,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(chatErrorMessage(data.error, data));
+        authState.daily = data.daily || authState.daily;
+        renderAuthState();
+        const parsed = data.cantonese || data.mandarin
+          ? { cantonese: data.cantonese || '', mandarin: data.mandarin || '' }
+          : parseCantoneseResult(data.reply);
+        entry.cantonese = parsed.cantonese;
+        entry.mandarin = parsed.mandarin;
+        entry.label = parsed.cantonese || parsed.mandarin ? '已完成' : '未听清';
+        entry.status = 'done';
+      } catch (error) {
+        entry.label = '识别失败';
+        entry.status = 'error';
+        entry.cantonese = '';
+        entry.mandarin = error.message || '识别失败，请稍后重试。';
+      } finally {
+        cantoneseInFlight = Math.max(0, cantoneseInFlight - 1);
+        renderCantoneseEntries();
+        if (cantoneseRunning) setCantoneseStatus(`正在实时传译…${cantoneseInFlight ? ` ${cantoneseInFlight} 段处理中` : ''}`, 'success');
+        else setCantoneseStatus('已停止。可以复制或清空字幕。', 'info');
+      }
+    };
+    const startCantoneseSegment = () => {
+      if (!cantoneseRunning || !cantoneseStream || !window.MediaRecorder) return;
+      cantoneseChunks = [];
+      const recorder = new MediaRecorder(cantoneseStream);
+      cantoneseRecorder = recorder;
+      const segmentIndex = ++cantoneseSegmentIndex;
+      recorder.addEventListener('dataavailable', (event) => { if (event.data?.size) cantoneseChunks.push(event.data); });
+      recorder.addEventListener('stop', () => {
+        const blob = new Blob(cantoneseChunks, { type: recorder.mimeType || 'audio/webm' });
+        cantoneseRecorder = null;
+        if (cantoneseRunning) window.setTimeout(startCantoneseSegment, 80);
+        processCantoneseSegment(blob, segmentIndex);
+      });
+      recorder.start();
+      cantoneseSegmentTimer = window.setTimeout(() => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      }, 2000);
+    };
+    const stopCantoneseTranslator = () => {
+      cantoneseRunning = false;
+      window.clearTimeout(cantoneseSegmentTimer);
+      cantoneseSegmentTimer = null;
+      if (cantoneseRecorder && cantoneseRecorder.state !== 'inactive') cantoneseRecorder.stop();
+      cantoneseStream?.getTracks().forEach((track) => track.stop());
+      cantoneseStream = null;
+      if (cantoneseStart) cantoneseStart.textContent = '开始传译';
+      setCantoneseStatus('已停止。可以复制或清空字幕。', 'info');
+    };
+    const startCantoneseTranslator = async () => {
+      if (cantoneseRunning) return stopCantoneseTranslator();
+      await refreshAuth();
+      if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号，再使用粤语实时传译。');
+      if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证，再使用粤语实时传译。');
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('当前浏览器不支持实时录音。');
+      cantoneseStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      cantoneseRunning = true;
+      if (cantoneseStart) cantoneseStart.textContent = '停止传译';
+      setCantoneseStatus('正在实时传译…请用粤语说话。', 'success');
+      startCantoneseSegment();
+    };
+    const openCantoneseModal = async () => {
+      await refreshAuth();
+      if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号，再使用粤语实时传译。');
+      if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证，再使用粤语实时传译。');
+      if (!cantoneseModal) return;
+      cantoneseModal.hidden = false;
+      document.body.classList.add('modal-open');
+      setAppViewportHeight();
+      cantoneseStart?.focus();
+    };
+    const closeCantoneseModal = () => {
+      stopCantoneseTranslator();
+      if (!cantoneseModal) return;
+      cantoneseModal.hidden = true;
+      document.body.classList.remove('modal-open');
+    };
+    cantoneseOpeners.forEach((button) => button.addEventListener('click', openCantoneseModal));
+    cantoneseClosers.forEach((button) => button.addEventListener('click', closeCantoneseModal));
+    cantoneseStart?.addEventListener('click', async () => {
+      try { await startCantoneseTranslator(); }
+      catch (error) { setCantoneseStatus(error.message || '录音启动失败，请检查麦克风权限。', 'error'); }
+    });
+    cantoneseClear?.addEventListener('click', () => {
+      cantoneseEntries = [];
+      renderCantoneseEntries();
+      setCantoneseStatus(cantoneseRunning ? '正在实时传译…请用粤语说话。' : '字幕已清空。', 'info');
+    });
+    cantoneseCopy?.addEventListener('click', async () => {
+      const text = cantoneseEntries
+        .filter((entry) => entry.cantonese || entry.mandarin)
+        .map((entry) => `#${entry.index}\n粤语：${entry.cantonese || '—'}\n普通话：${entry.mandarin || '—'}`)
+        .join('\n\n');
+      if (!text) return setCantoneseStatus('还没有可复制的字幕。', 'warn');
+      try {
+        await navigator.clipboard.writeText(text);
+        setCantoneseStatus('字幕已复制。', 'success');
+      } catch (_) {
+        setCantoneseStatus('当前浏览器不允许自动复制，请手动选中文字复制。', 'warn');
+      }
+    });
+
     const buildChatHistory = (messages, mediaItems) => messages.slice(-50).map((message, index, list) => {
       const isLastUser = index === list.length - 1 && message.role === 'user' && mediaItems.length;
       return {
@@ -1161,6 +1393,7 @@
     });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && chatModal && !chatModal.hidden) closeChatModal();
+      if (event.key === 'Escape' && cantoneseModal && !cantoneseModal.hidden) closeCantoneseModal();
     });
     const resizeChatInput = () => {
       if (!chatInput) return;
