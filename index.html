@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=admin-dashboard" />
+  <link rel="stylesheet" href="styles.css?v=mimo-keyboard" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -956,9 +956,26 @@
     let cantoneseInFlight = 0;
     let cantoneseEntries = [];
 
+    let maxAppViewportHeight = window.innerHeight || 0;
+    const isEditableElement = (element) => Boolean(element?.matches?.('input, textarea, select, [contenteditable="true"]'));
     const setAppViewportHeight = () => {
-      const height = window.visualViewport?.height || window.innerHeight;
-      if (height) document.documentElement.style.setProperty('--app-vh', `${height}px`);
+      const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+      if (height) {
+        document.documentElement.style.setProperty('--app-vh', `${height}px`);
+        maxAppViewportHeight = Math.max(maxAppViewportHeight, height);
+      }
+      const keyboardLikelyOpen = window.matchMedia('(max-width: 780px)').matches
+        && isEditableElement(document.activeElement)
+        && maxAppViewportHeight
+        && height
+        && (maxAppViewportHeight - height > 120);
+      document.body.classList.toggle('keyboard-open', Boolean(keyboardLikelyOpen));
+      if (keyboardLikelyOpen && chatModal && !chatModal.hidden) chatModal.scrollTop = 0;
+    };
+    const scheduleViewportSync = () => {
+      setAppViewportHeight();
+      window.setTimeout(setAppViewportHeight, 80);
+      window.setTimeout(setAppViewportHeight, 260);
     };
     setAppViewportHeight();
     window.addEventListener('resize', setAppViewportHeight);
@@ -1396,7 +1413,7 @@
     const closeChatModal = () => {
       if (!chatModal) return;
       chatModal.hidden = true;
-      document.body.classList.remove('modal-open');
+      document.body.classList.remove('modal-open', 'keyboard-open');
     };
     const openChatModal = async () => {
       await refreshAuth();
@@ -1413,7 +1430,7 @@
       renderChat();
       chatModal.hidden = false;
       document.body.classList.add('modal-open');
-      setAppViewportHeight();
+      scheduleViewportSync();
       if (window.matchMedia('(min-width: 781px)').matches) chatInput?.focus();
     };
     chatOpeners.forEach((button) => button.addEventListener('click', openChatModal));
@@ -1437,6 +1454,8 @@
       chatInput.style.height = `${Math.min(Math.max(chatInput.scrollHeight, 42), 120)}px`;
     };
     chatInput?.addEventListener('input', resizeChatInput);
+    chatInput?.addEventListener('focus', scheduleViewportSync);
+    chatInput?.addEventListener('blur', scheduleViewportSync);
     chatImageButton?.addEventListener('click', () => {
       if (chatBusy) return;
       chatImageInput?.click();

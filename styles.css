@@ -1488,6 +1488,15 @@ body.member-signed-in .member-tabs { display: none; }
   .chat-messages { padding: 16px 20px; }
   .chat-typing-status { margin: -4px 20px 10px; }
   .chat-composer { margin: 0 14px max(18px, env(safe-area-inset-bottom)); }
+  body.keyboard-open .chat-modal { place-items: stretch; padding: 0; overflow: hidden; }
+  body.keyboard-open .chat-shell { width: 100%; height: var(--app-vh, 100dvh); max-height: var(--app-vh, 100dvh); border-radius: 0; grid-template-rows: minmax(0, 1fr); }
+  body.keyboard-open .chat-sidebar,
+  body.keyboard-open .chat-header { display: none; }
+  body.keyboard-open .chat-main { grid-template-rows: minmax(0, 1fr) auto; }
+  body.keyboard-open .chat-close { top: 8px; right: 8px; width: 34px; height: 34px; z-index: 4; background: rgba(255,255,255,.16); }
+  body.keyboard-open .chat-messages { padding: 14px 14px 8px; }
+  body.keyboard-open .chat-composer { margin: 0 10px max(10px, env(safe-area-inset-bottom)); padding: 8px; border-radius: 18px; }
+  body.keyboard-open .chat-input-row { gap: 8px; }
   .chat-empty span { letter-spacing: -2px; }
   .split-section { gap: 32px; }
   h2 { letter-spacing: -1.6px; }
