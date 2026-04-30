@@ -395,7 +395,7 @@
         <h2 id="cantonese-title">粤语实时传译</h2>
         <p>网页麦克风每 1 秒上传一次语音增量，并持续刷新同一个「粤语原文 / 普通话文字」字幕块。默认不保存音频。</p>
       </header>
-      <div id="cantonese-status" class="cantonese-status" role="status" aria-live="polite">登录会员后可使用。点击开始后浏览器会请求麦克风权限。</div>
+      <div id="cantonese-status" class="cantonese-status" role="status" aria-live="polite">每日 30 分钟，管理员无限制。点击开始后浏览器会请求麦克风权限。</div>
       <div class="cantonese-controls" aria-label="粤语实时传译控制">
         <button id="cantonese-start" class="cantonese-control is-primary" type="button">开始传译</button>
         <button id="cantonese-clear" class="cantonese-control" type="button">清空字幕</button>
@@ -549,7 +549,7 @@
     });
 
     const authEndpoint = 'https://api.rayalex.cn';
-    let authState = { user: null, daily: null };
+    let authState = { user: null, daily: null, cantoneseDaily: null };
 
     const memberSection = document.getElementById('member-access');
     const memberStatus = document.getElementById('member-status');
@@ -587,6 +587,17 @@
       const remaining = daily.remaining ?? Math.max(0, limit - used);
       return `今日已用：${used} / ${limit}｜剩余：${remaining} 次`;
     };
+    const formatCantoneseDailySummary = (daily) => {
+      if (!daily) return '实时传译额度：每日 30 分钟';
+      if (daily.unlimited || daily.limit_seconds === null) return '实时传译额度：管理员无限制';
+      const usedSeconds = daily.used_seconds ?? 0;
+      const limitSeconds = daily.limit_seconds ?? 1800;
+      const remainingSeconds = daily.remaining_seconds ?? Math.max(0, limitSeconds - usedSeconds);
+      const usedMinutes = Math.floor(usedSeconds / 60);
+      const limitMinutes = Math.round(limitSeconds / 60);
+      const remainingMinutes = Math.max(0, Math.ceil(remainingSeconds / 60));
+      return `实时传译额度：已用 ${usedMinutes} / ${limitMinutes} 分钟｜剩余约 ${remainingMinutes} 分钟`;
+    };
     const renderChatQuota = () => {
       const quota = document.getElementById('chat-quota-status');
       if (quota) quota.textContent = formatDailySummary(authState.daily);
@@ -596,6 +607,7 @@
         not_authenticated: '请先登录会员账号。',
         email_not_verified: '请先完成邮箱验证。',
         daily_limit_exceeded: '今日 MiMo 次数已用完。',
+        cantonese_daily_limit_exceeded: '今日粤语实时传译 30 分钟额度已用完。',
         rate_limited: data.retry_after ? `操作太频繁，请 ${data.retry_after} 秒后再试。` : '操作太频繁，请稍后再试。',
         channel_paused: 'MiMo 通道已暂停。',
         payload_too_large: '消息或媒体太大，请缩小后再发送。',
@@ -758,10 +770,10 @@
     const refreshAuth = async () => {
       try {
         const { response, data } = await authFetch('/auth/me', { method: 'GET', headers: {} });
-        if (response.ok && data.ok) authState = { user: data.user, daily: data.daily };
-        else authState = { user: null, daily: null };
+        if (response.ok && data.ok) authState = { user: data.user, daily: data.daily, cantoneseDaily: data.cantonese_daily || null };
+        else authState = { user: null, daily: null, cantoneseDaily: null };
       } catch (_) {
-        authState = { user: null, daily: null };
+        authState = { user: null, daily: null, cantoneseDaily: null };
       }
       renderAuthState();
       return authState;
@@ -776,7 +788,7 @@
       };
       const { response, data } = await authFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
       if (response.ok && data.ok) {
-        authState = { user: data.user, daily: data.daily };
+        authState = { user: data.user, daily: data.daily, cantoneseDaily: data.cantonese_daily || null };
         renderAuthState();
         showAuthMessage('登录成功，可以进入 Ray AI Chat。', 'success');
         return;
@@ -887,7 +899,7 @@
 
     logoutButton?.addEventListener('click', async () => {
       await authFetch('/auth/logout', { method: 'POST', body: '{}' });
-      authState = { user: null, daily: null };
+      authState = { user: null, daily: null, cantoneseDaily: null };
       closeAdminModal();
       renderAuthState();
       showAuthMessage('已退出登录。', 'success');
@@ -1199,13 +1211,19 @@
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             audio: audioDataUrl,
+            segment_ms: 1000,
             max_tokens: 700,
             temperature: 0.1,
           }),
         });
         const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(chatErrorMessage(data.error, data));
+        if (data.cantonese_daily) authState.cantoneseDaily = data.cantonese_daily;
+        if (!response.ok || !data.ok) {
+          if (data.error === 'cantonese_daily_limit_exceeded') stopCantoneseTranslator();
+          throw new Error(chatErrorMessage(data.error, data));
+        }
         authState.daily = data.daily || authState.daily;
+        authState.cantoneseDaily = data.cantonese_daily || authState.cantoneseDaily;
         renderAuthState();
         const parsed = data.cantonese || data.mandarin
           ? { cantonese: data.cantonese || '', mandarin: data.mandarin || '' }
@@ -1221,8 +1239,8 @@
       } finally {
         cantoneseInFlight = Math.max(0, cantoneseInFlight - 1);
         renderCantoneseEntries();
-        if (cantoneseRunning) setCantoneseStatus(`正在实时传译…${cantoneseInFlight ? ` ${cantoneseInFlight} 次刷新处理中` : '每秒刷新同一个字幕块'}`, 'success');
-        else setCantoneseStatus('已停止。可以复制或清空字幕。', 'info');
+        if (cantoneseRunning) setCantoneseStatus(`正在实时传译…${cantoneseInFlight ? ` ${cantoneseInFlight} 次刷新处理中` : `每秒刷新同一个字幕块｜${formatCantoneseDailySummary(authState.cantoneseDaily)}`}`, 'success');
+        else setCantoneseStatus(entry.status === 'error' ? (entry.mandarin || '已停止。') : '已停止。可以复制或清空字幕。', entry.status === 'error' ? 'error' : 'info');
       }
     };
     const startCantoneseSegment = () => {
@@ -1265,7 +1283,7 @@
       cantoneseEntries = [{ id: 'live', index: 'live', label: '等待语音…', status: 'pending', cantonese: '', mandarin: '' }];
       renderCantoneseEntries();
       if (cantoneseStart) cantoneseStart.textContent = '停止传译';
-      setCantoneseStatus('正在实时传译…每秒刷新同一个字幕块。', 'success');
+      setCantoneseStatus(`正在实时传译…每秒刷新同一个字幕块。${formatCantoneseDailySummary(authState.cantoneseDaily)}`, 'success');
       startCantoneseSegment();
     };
     const openCantoneseModal = async () => {
@@ -1276,6 +1294,7 @@
       cantoneseModal.hidden = false;
       document.body.classList.add('modal-open');
       setAppViewportHeight();
+      setCantoneseStatus(formatCantoneseDailySummary(authState.cantoneseDaily), 'info');
       cantoneseStart?.focus();
     };
     const closeCantoneseModal = () => {
@@ -1293,7 +1312,7 @@
     cantoneseClear?.addEventListener('click', () => {
       cantoneseEntries = [];
       renderCantoneseEntries();
-      setCantoneseStatus(cantoneseRunning ? '正在实时传译…每秒刷新同一个字幕块。' : '字幕已清空。', 'info');
+      setCantoneseStatus(cantoneseRunning ? `正在实时传译…每秒刷新同一个字幕块。${formatCantoneseDailySummary(authState.cantoneseDaily)}` : '字幕已清空。', 'info');
     });
     cantoneseCopy?.addEventListener('click', async () => {
       const text = cantoneseEntries
