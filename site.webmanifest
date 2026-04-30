@@ -1,0 +1,30 @@
+{
+  "name": "Ray — AI Agent 产品探索者 / 独立开发者",
+  "short_name": "Ray",
+  "description": "Ray，AI Agent 产品探索者与独立开发者，关注 AI Agent、产品原型、自动化工作流与个人创造力工具。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050506",
+  "theme_color": "#050506",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
