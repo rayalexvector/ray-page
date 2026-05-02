@@ -163,7 +163,7 @@
       <div class="member-copy">
         <p class="eyebrow">RAY x MIMO</p>
         <h2>登录以使用Ray AI Chat</h2>
-        <p>使用邀请码注册，即可进入Mimo通道。每日默认50次对话额度。</p>
+        <p>使用邀请码注册，即可进入Mimo通道。每日默认10次对话额度。</p>
         <div id="member-status" class="member-status">正在检查登录状态…</div>
       </div>
       <div class="member-panel" aria-label="会员登录与注册">
@@ -400,7 +400,7 @@
         <h2 id="cantonese-title">粤语实时传译</h2>
         <p>网页麦克风每 1 秒上传一次语音增量，并持续刷新同一个「粤语原文 / 普通话文字」字幕块。默认不保存音频。</p>
       </header>
-      <div id="cantonese-status" class="cantonese-status" role="status" aria-live="polite">每日 30 分钟，VIP/管理员无限制。点击开始后浏览器会请求麦克风权限。</div>
+      <div id="cantonese-status" class="cantonese-status" role="status" aria-live="polite">每日 30 秒，VIP/管理员无限制。点击开始后浏览器会请求麦克风权限。</div>
       <div class="cantonese-controls" aria-label="粤语实时传译控制">
         <button id="cantonese-start" class="cantonese-control is-primary" type="button">开始传译</button>
         <button id="cantonese-clear" class="cantonese-control" type="button">清空字幕</button>
@@ -591,20 +591,24 @@
       if (!daily) return '今日额度：—';
       if (daily.unlimited || daily.limit === null) return `今日已用：${daily.used ?? 0}｜${unlimitedQuotaLabel()}`;
       const used = daily.used ?? 0;
-      const limit = daily.limit ?? 50;
+      const limit = daily.limit ?? 10;
       const remaining = daily.remaining ?? Math.max(0, limit - used);
       return `今日已用：${used} / ${limit}｜剩余：${remaining} 次`;
     };
+    const formatDurationSeconds = (seconds) => {
+      const safeSeconds = Math.max(0, Number(seconds || 0));
+      if (safeSeconds < 60) return `${Math.round(safeSeconds)} 秒`;
+      const minutes = Math.floor(safeSeconds / 60);
+      const rest = Math.round(safeSeconds % 60);
+      return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`;
+    };
     const formatCantoneseDailySummary = (daily) => {
-      if (!daily) return '实时传译额度：每日 30 分钟';
+      if (!daily) return '实时传译额度：每日 30 秒';
       if (daily.unlimited || daily.limit_seconds === null) return unlimitedCantoneseLabel();
       const usedSeconds = daily.used_seconds ?? 0;
-      const limitSeconds = daily.limit_seconds ?? 1800;
+      const limitSeconds = daily.limit_seconds ?? 30;
       const remainingSeconds = daily.remaining_seconds ?? Math.max(0, limitSeconds - usedSeconds);
-      const usedMinutes = Math.floor(usedSeconds / 60);
-      const limitMinutes = Math.round(limitSeconds / 60);
-      const remainingMinutes = Math.max(0, Math.ceil(remainingSeconds / 60));
-      return `实时传译额度：已用 ${usedMinutes} / ${limitMinutes} 分钟｜剩余约 ${remainingMinutes} 分钟`;
+      return `实时传译额度：已用 ${formatDurationSeconds(usedSeconds)} / ${formatDurationSeconds(limitSeconds)}｜剩余 ${formatDurationSeconds(remainingSeconds)}`;
     };
     const renderChatQuota = () => {
       const quota = document.getElementById('chat-quota-status');
@@ -615,7 +619,7 @@
         not_authenticated: '请先登录会员账号。',
         email_not_verified: '请先完成邮箱验证。',
         daily_limit_exceeded: '今日 MiMo 次数已用完。',
-        cantonese_daily_limit_exceeded: '今日粤语实时传译 30 分钟额度已用完。',
+        cantonese_daily_limit_exceeded: '今日粤语实时传译 30 秒额度已用完。',
         rate_limited: data.retry_after ? `操作太频繁，请 ${data.retry_after} 秒后再试。` : '操作太频繁，请稍后再试。',
         channel_paused: 'MiMo 通道已暂停。',
         payload_too_large: '消息或媒体太大，请缩小后再发送。',
