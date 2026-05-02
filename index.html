@@ -192,6 +192,11 @@
             <span>邮箱</span>
             <input id="register-email" type="email" autocomplete="email" placeholder="you@example.com" required />
           </label>
+          <button id="send-register-code" class="member-link" type="button">发送邮箱验证码</button>
+          <label>
+            <span>邮箱验证码</span>
+            <input id="register-verification-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="\d{6}" maxlength="6" placeholder="6 位数字验证码" required />
+          </label>
           <label>
             <span>密码</span>
             <input id="register-password" type="password" autocomplete="new-password" placeholder="至少 8 位" minlength="8" required />
@@ -559,6 +564,7 @@
     const authMessage = document.getElementById('auth-message');
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
+    const sendRegisterCodeButton = document.getElementById('send-register-code');
     const logoutButton = document.getElementById('logout-button');
     const forgotButton = document.getElementById('forgot-password');
     const adminOpen = document.getElementById('admin-open');
@@ -803,6 +809,56 @@
       showAuthMessage(message, 'error');
     });
 
+    let registerCodeCooldownTimer = null;
+    const startRegisterCodeCooldown = (seconds = 60) => {
+      if (!sendRegisterCodeButton) return;
+      window.clearInterval(registerCodeCooldownTimer);
+      let remaining = Math.max(1, Number(seconds || 60));
+      sendRegisterCodeButton.disabled = true;
+      const tick = () => {
+        sendRegisterCodeButton.textContent = `重新发送（${remaining}s）`;
+        remaining -= 1;
+        if (remaining < 0) {
+          window.clearInterval(registerCodeCooldownTimer);
+          sendRegisterCodeButton.disabled = false;
+          sendRegisterCodeButton.textContent = '发送邮箱验证码';
+        }
+      };
+      tick();
+      registerCodeCooldownTimer = window.setInterval(tick, 1000);
+    };
+
+    sendRegisterCodeButton?.addEventListener('click', async () => {
+      const inviteCode = document.getElementById('register-invite')?.value.trim();
+      const email = document.getElementById('register-email')?.value.trim();
+      if (!inviteCode || !email) {
+        showAuthMessage('请先填写邀请码和邮箱，再发送验证码。', 'warn');
+        return;
+      }
+      sendRegisterCodeButton.disabled = true;
+      sendRegisterCodeButton.textContent = '发送中…';
+      const { response, data } = await authFetch('/auth/register/send-code', {
+        method: 'POST',
+        body: JSON.stringify({ invite_code: inviteCode, email }),
+      });
+      if (response.ok && data.ok) {
+        showAuthMessage('验证码已发送到邮箱。请在 10 分钟内填写完成注册。', 'success');
+        startRegisterCodeCooldown(data.resend_after || 60);
+        return;
+      }
+      sendRegisterCodeButton.disabled = false;
+      sendRegisterCodeButton.textContent = '发送邮箱验证码';
+      const map = {
+        invite_required: '请先填写邀请码。',
+        invalid_invite_code: '邀请码无效或已用尽。',
+        invalid_email: '请填写有效邮箱。',
+        email_already_registered: '这个邮箱已经注册，请直接登录。',
+        email_send_failed: '验证码邮件暂时发送失败，请稍后再试。',
+        rate_limited: chatErrorMessage('rate_limited', data),
+      };
+      showAuthMessage(map[data.error] || '验证码发送失败，请稍后再试。', 'error');
+    });
+
     registerForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const password = document.getElementById('register-password')?.value || '';
@@ -816,21 +872,28 @@
         invite_code: document.getElementById('register-invite')?.value.trim(),
         email: document.getElementById('register-email')?.value.trim(),
         password,
+        verification_code: document.getElementById('register-verification-code')?.value.trim(),
       };
       const { response, data } = await authFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
       if (response.ok && data.ok) {
-        setAuthTab('login');
-        showAuthMessage('账号已创建。请检查邮箱并点击验证链接，然后登录。', 'success');
+        authState = { user: data.user, daily: data.daily, cantoneseDaily: data.cantonese_daily || null };
+        renderAuthState();
+        showAuthMessage('注册成功，已登录，可以进入 Ray AI Chat。', 'success');
+        document.getElementById('register-password').value = '';
+        document.getElementById('register-password-confirm').value = '';
+        document.getElementById('register-verification-code').value = '';
         return;
       }
       const map = {
+        invite_required: '请先填写邀请码。',
         invalid_invite_code: '邀请码无效或已用尽。',
+        invalid_or_expired_verification_code: '验证码错误或已过期，请重新输入或重新发送。',
         email_already_registered: '这个邮箱已经注册，请直接登录。',
         invalid_password: '密码至少需要 8 位。',
-        email_send_failed: '账号已创建，但验证邮件暂时发送失败。等邮件服务恢复后请重新发送验证邮件。',
+        email_send_failed: '验证码邮件暂时发送失败，请稍后再试。',
         rate_limited: chatErrorMessage('rate_limited', data),
       };
-      showAuthMessage(map[data.error] || '注册失败，请稍后再试。', data.registered ? 'warn' : 'error');
+      showAuthMessage(map[data.error] || '注册失败，请稍后再试。', 'error');
     });
 
     forgotButton?.addEventListener('click', async () => {
