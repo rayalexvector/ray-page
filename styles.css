@@ -1732,3 +1732,37 @@ body.member-signed-in .member-tabs { display: none; }
   .ray-title { font-size: clamp(5.2rem, 27vw, 7.8rem); }
   .hero-smoke { inset: -16% -22% -18% 10%; filter: blur(60px) saturate(1.10); }
 }
+
+/* 只修复 Ray 标题 y 字右侧被裁切；不改右侧背景光效 */
+.title-wrap,
+.ray-title-wrap {
+  overflow: visible !important;
+  width: auto !important;
+  max-width: none !important;
+  padding-right: 24px;
+}
+
+.hero-title,
+.ray-title {
+  display: inline-block !important;
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+
+  /* 给最后一个 y 留出右侧渲染空间 */
+  padding-right: 0.12em;
+
+  /* 不改原来的渐变、光效、filter，只修盒子边界 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* 让标题的模糊光晕副本也不要被裁 */
+.hero-title::before,
+.hero-title::after,
+.ray-title::before,
+.ray-title::after {
+  overflow: visible !important;
+  right: -0.12em;
+  width: calc(100% + 0.12em);
+}
