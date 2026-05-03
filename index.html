@@ -721,7 +721,7 @@
       window.setTimeout(() => {
         document.body.classList.remove('intro-active', 'intro-ready', 'intro-leaving');
         intro?.setAttribute('aria-hidden', 'true');
-        document.getElementById('top')?.scrollIntoView({ block: 'start' });
+        window.scrollTo(0, 0);
       }, 900);
     };
 
