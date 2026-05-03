@@ -1766,3 +1766,62 @@ body.member-signed-in .member-tabs { display: none; }
   right: -0.12em;
   width: calc(100% + 0.12em);
 }
+
+/* ================================
+   Ray 标题横向位置修正版
+   只调整左右位置，不改上下，不改背景光影
+================================ */
+
+.title-wrap {
+  position: absolute;
+
+  /* 保持当前上下位置，不动 */
+  top: 24%;
+
+  /* 按 Grok 参考图的视觉位置，把标题整体向右收进光区一点 */
+  left: 50%;
+  transform: translateX(calc(-50% + 18px));
+
+  width: auto !important;
+  max-width: none !important;
+  display: inline-block;
+  isolation: isolate;
+  overflow: visible !important;
+
+  /* 保留 y 字右侧安全空间，避免再次裁切 */
+  padding-right: 24px;
+}
+
+/* 当前线上真实类名：保持上下文档流，只同步横向位置与安全边界 */
+.ray-title-wrap {
+  position: relative;
+  left: 50%;
+  transform: translateX(calc(-50% + 18px));
+  width: auto !important;
+  max-width: none !important;
+  display: inline-block;
+  isolation: isolate;
+  overflow: visible !important;
+  padding-right: 24px;
+}
+
+/* 不改 Ray 字体的渐变、发光、大小，只确保文字盒子不裁切 */
+.hero-title,
+.ray-title {
+  display: inline-block !important;
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  padding-right: 0.12em;
+  letter-spacing: -0.05em;
+}
+
+/* 让标题自身的模糊副本不被裁，不影响右侧背景光效 */
+.hero-title::before,
+.hero-title::after,
+.ray-title::before,
+.ray-title::after {
+  overflow: visible !important;
+  right: -0.12em;
+  width: calc(100% + 0.12em);
+}
