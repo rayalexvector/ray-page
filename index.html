@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=rev10-xai-hero" />
+  <link rel="stylesheet" href="styles.css?v=rev11-fluid-hero-2" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -512,92 +512,80 @@
       uniform vec2 u_resolution;
       uniform float u_time;
       uniform vec2 u_mouse;
+      #define OCTAVES 6
 
-      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
+      mat2 rot(float a){ float s=sin(a), c=cos(a); return mat2(c,-s,s,c); }
+      float hash(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }
       float noise(vec2 p){
-        vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
-        float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));
-        return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+        vec2 i=floor(p); vec2 f=fract(p);
+        float a=hash(i), b=hash(i+vec2(1.0,0.0)), c=hash(i+vec2(0.0,1.0)), d=hash(i+vec2(1.0,1.0));
+        vec2 u=f*f*(3.0-2.0*f);
+        return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
       }
       float fbm(vec2 p){
-        float v=0., a=.5;
-        for(int i=0;i<6;i++){ v+=a*noise(p); p*=2.03; a*=.5; }
+        float v=0.0; float a=0.5; vec2 shift=vec2(100.0);
+        for(int i=0;i<OCTAVES;i++){ v+=a*noise(p); p=rot(0.55)*p*2.0+shift; a*=0.5; }
         return v;
       }
-      float softEllipse(vec2 p, vec2 c, vec2 s, float k){ return exp(-pow(length((p-c)*s), k)); }
 
       void main(){
-        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-        vec2 mouse = u_mouse / u_resolution.xy;
-        float t = u_time * 0.105;
+        vec2 uv=gl_FragCoord.xy/u_resolution.xy;
+        float aspect=u_resolution.x/u_resolution.y;
+        float t=u_time*0.07;
+        vec2 anchor=vec2(0.885,0.52);
+        vec2 q=uv-anchor;
+        q.x*=aspect;
 
-        vec3 black = vec3(0.0015,0.0025,0.0065);
-        vec3 deepBlue = vec3(0.030,0.045,0.105);
-        vec3 hazeBlue = vec3(0.16,0.23,0.48);
-        vec3 softBlue = vec3(0.38,0.55,0.98);
-        vec3 whiteBlue = vec3(0.92,0.97,1.15);
-        vec3 col = black;
-
-        vec2 lightPos = vec2(1.145, 0.515);
-        vec2 lp = uv - lightPos;
-        float dist = length(lp * vec2(0.78, 1.38));
-        float source = exp(-dist * 6.05);
-        float sideMask = smoothstep(0.20, 0.98, uv.x);
-
-        float mainWash = exp(-(1.0 - uv.x) * 4.22) * exp(-abs(uv.y - 0.515) * 1.42);
-        mainWash *= sideMask;
-
-        float leftFlow = smoothstep(0.0, 1.0, fract(u_time * .026));
-        vec2 q = uv * vec2(1.42, 2.02);
-        vec2 warp = vec2(
-          fbm(q + vec2(t*.18, -t*.08)),
-          fbm(q*1.12 + vec2(t*.10, t*.16))
+        float body=exp(-3.1*length(q/vec2(0.56,0.98)))
+          +0.42*exp(-7.8*length((uv-vec2(0.79,0.52))/vec2(0.32,0.70)));
+        vec2 warp1=vec2(
+          fbm(q*1.85+vec2(0.0,t*0.85)),
+          fbm(q*1.85+vec2(4.8,-t*0.72))
         );
-        vec2 p = (uv - vec2(0.61, 0.505)) * vec2(2.75, 2.04) + (warp - .5) * 1.58;
-        float smoke = fbm(p + vec2(t*.24, t*.06));
-        smoke = smoothstep(.15, .72, smoke);
-        float smokeBand = exp(-abs(uv.y - 0.505) * 1.24) * smoothstep(.08,.94,uv.x);
-        smoke *= smokeBand;
+        vec2 warp2=vec2(
+          fbm(rot(0.25)*q*2.7+warp1*1.8+vec2(2.0,t*0.45)),
+          fbm(rot(-0.35)*q*2.6+warp1*1.8+vec2(7.0,-t*0.38))
+        );
+        float n1=fbm(q*3.0+warp1*2.2+warp2*1.4);
+        float n2=fbm(rot(0.18)*q*4.6+warp2*2.0-vec2(t*0.55,0.0));
+        float field=mix(n1,n2,0.52);
+        float plume=smoothstep(0.22,0.96,field)*body;
+        float core=exp(-16.0*length((uv-vec2(0.992,0.53))/vec2(0.18,0.45)));
+        float rim=exp(-8.0*length((uv-vec2(0.93,0.53))/vec2(0.24,0.58)));
+        float spill=exp(-pow((uv.x-0.76)/0.26,2.0)-pow((uv.y-0.54)/0.86,2.0));
+        float breathe=0.98+0.03*sin(u_time*0.55);
+        float plumeHigh=smoothstep(0.42,0.96,field);
+        float plumeVeil=(1.0-smoothstep(0.74,1.0,field))*0.65;
 
-        float smokeBreath = sin(u_time * .15) * .5 + .5;
-        vec2 plumeCenter = vec2(0.76 - 0.095*leftFlow + 0.010*sin(u_time*.07), 0.505 + 0.014*sin(u_time*.08));
-        vec2 plumeUv = (uv - plumeCenter) * vec2(1.18, 1.58);
-        plumeUv += (warp - .5) * (.92 + smokeBreath*.34);
-        float plumeShape = softEllipse(uv, plumeCenter, vec2(1.58,2.50), 2.0);
-        float plumeNoise = fbm(plumeUv + vec2(t*.22, t*.045));
-        float plume = plumeShape * smoothstep(.08,.66,plumeNoise) * smoothstep(.07,.92,uv.x);
+        vec3 col=vec3(0.0);
+        col+=vec3(0.010,0.020,0.060)*body*0.95;
+        col+=vec3(0.030,0.070,0.220)*spill*0.50;
+        col+=vec3(0.060,0.120,0.360)*plume*0.95;
+        col+=vec3(0.105,0.190,0.500)*plume*plumeHigh*0.32;
+        col+=vec3(0.018,0.034,0.105)*plume*plumeVeil*0.50;
+        col+=vec3(0.450,0.580,0.950)*rim*0.95;
+        col+=vec3(0.850,0.920,1.000)*core*1.35;
+        float edgeLight=pow(smoothstep(0.68,1.0,uv.x),1.65)*exp(-pow((uv.y-0.52)/0.82,2.0));
+        col+=vec3(0.150,0.240,0.680)*edgeLight*0.34;
+        col+=vec3(0.620,0.760,1.000)*edgeLight*0.085;
 
-        vec2 innerCenter = vec2(0.53 - 0.070*leftFlow + 0.008*sin(u_time*.10), 0.502 + 0.010*sin(u_time*.14));
-        float innerCloud = softEllipse(uv, innerCenter, vec2(2.02,3.52), 2.0);
-        innerCloud *= smoothstep(.12,.76, fbm((uv - innerCenter)*vec2(1.42,2.08) + vec2(t*.16,t*.035)));
-        innerCloud *= smoothstep(.04,.66,uv.x);
+        float smokeDetail=smoothstep(0.20,0.88,fbm(q*5.6+warp2*2.3+vec2(0.0,t*0.6)));
+        col+=vec3(0.12,0.16,0.28)*smokeDetail*body*0.12;
+        col+=vec3(0.24,0.30,0.48)*smokeDetail*rim*0.10;
 
-        float broadRay = exp(-dist*2.85) * exp(-abs(uv.y-.50)*1.06) * smoothstep(.42,1.0,uv.x);
-        float edgeBlast = exp(-(1.0 - uv.x) * 7.8) * exp(-abs(uv.y - .51) * 1.08);
-        edgeBlast *= smoothstep(.62, 1.0, uv.x);
-        float mouseGlow = exp(-length((uv - mouse) * vec2(1.1,1.0))*8.0) * sideMask * .12;
+        vec2 mouse=u_mouse/u_resolution.xy;
+        float mouseGlow=exp(-length((uv-mouse)*vec2(1.1,1.0))*8.0)*smoothstep(0.34,1.0,uv.x);
+        col+=vec3(0.10,0.16,0.38)*mouseGlow*0.055;
 
-        col += deepBlue * mainWash * .31;
-        col += hazeBlue * mainWash * .27;
-        col += softBlue * smoke * .50;
-        col += hazeBlue * plume * .94;
-        col += softBlue * innerCloud * .58;
-        col += whiteBlue * broadRay * .13;
-        col += whiteBlue * source * .98;
-        col += whiteBlue * edgeBlast * .18;
-        col += softBlue * mouseGlow;
-
-        float leftPreserve = smoothstep(0.06, 0.55, uv.x);
-        col *= mix(0.18, 1.0, leftPreserve);
-
-        float vignette = smoothstep(1.16, .18, length((uv - vec2(.63,.52))*vec2(1.05,.96)));
-        col *= vignette + .16;
-        col *= mix(.54, 1.0, smoothstep(.10,.30,uv.y) * (1.0 - smoothstep(.94,1.0,uv.y)));
-
-        col = max(col - vec3(.018,.018,.020), 0.0);
-        col = mix(col, whiteBlue, source*.095 + edgeBlast*.040 + broadRay*.012);
-        col = pow(col, vec3(.91));
-        gl_FragColor = vec4(col, 1.0);
+        col*=breathe;
+        float leftMask=smoothstep(0.03,0.74,uv.x);
+        col*=leftMask;
+        float vignette=smoothstep(1.25,0.08,length((uv-0.5)*vec2(1.02,1.24)));
+        col*=vignette;
+        col*=mix(0.70,1.0,smoothstep(0.08,0.32,uv.y)*(1.0-smoothstep(0.92,1.0,uv.y)));
+        float grain=(hash(gl_FragCoord.xy*0.87+u_time)-0.5)*0.018;
+        col=max(col+grain,vec3(0.0));
+        gl_FragColor=vec4(col,1.0);
       }
     `;
 
