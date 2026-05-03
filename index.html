@@ -599,11 +599,12 @@
         ) - 0.5;
 
         vec2 flow = swirl + warpA * 0.18 + warpB * 0.10;
+        vec2 advect = vec2(time * 0.24, 0.0);
 
-        // 主烟雾层：柔和、大面积
-        float smokeLarge = fbm(flow * 2.8 + vec2(-time * 0.45, time * 0.24));
-        float smokeMid   = fbm(flow * 5.2 + warpA * 1.4 + vec2(time * 0.24, -time * 0.42));
-        float smokeFine  = fbm(flow * 9.4 + warpB * 1.6 + vec2(-time * 0.36, time * 0.18));
+        // 主烟雾层：柔和、大面积，现有纹理统一向左漂移
+        float smokeLarge = fbm(flow * 2.8 + advect);
+        float smokeMid   = fbm(flow * 5.2 + warpA * 1.4 + advect);
+        float smokeFine  = fbm(flow * 9.4 + warpB * 1.6 + advect);
 
         float smoke = smokeLarge * 0.30 + smokeMid * 0.32 + smokeFine * 0.38;
 
@@ -611,9 +612,9 @@
         float plumeMask = smoothstep(0.03, 0.78, wideBody + midBody * 0.75);
         float plume = smoothstep(0.28, 0.88, smoke) * plumeMask;
 
-        // 丝状流光：关键！让它不像普通 gradient
+        // 丝状流光：沿同一个 advect 方向移动，不新增光团
         float threadBase = sin(
-          (flow.x * 2.4 + flow.y * 7.2 + smokeLarge * 3.6 - time * 1.25) * TAU
+          (flow.x * 2.4 + flow.y * 7.2 + smokeLarge * 3.6 + advect.x * 2.4) * TAU
         ) * 0.5 + 0.5;
 
         float threads = smoothstep(0.66, 0.95, threadBase);
