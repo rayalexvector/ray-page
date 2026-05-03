@@ -1517,3 +1517,168 @@ body.member-signed-in .member-tabs { display: none; }
   .member-section { grid-template-columns: 1fr; }
   .member-copy, .member-panel { border-radius: 26px; }
 }
+
+
+/* rev10-xai-hero-migration: approved one-sided right light + organic smoke, preserving existing DOM controls. */
+.site-header {
+  background: rgba(0, 0, 0, .56);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: rgba(255, 255, 255, .08) 0 1px 0 0;
+}
+.site-header .brand,
+.site-header .nav-links { color: rgba(255, 255, 255, .78); }
+.site-header .brand-mark { background: rgba(255,255,255,.92); color: #050505; }
+.site-header .nav-links a:hover { color: #fff; }
+
+.hero.section-shell {
+  position: relative;
+  max-width: none;
+  width: 100%;
+  min-height: calc(100svh - 68px);
+  padding: clamp(64px, 9vh, 108px) max(24px, calc((100vw - 1120px) / 2 + 24px)) clamp(70px, 10vh, 120px);
+  overflow: hidden;
+  isolation: isolate;
+  background: #000;
+  color: rgba(255,255,255,.94);
+}
+.hero.section-shell::before,
+.hero.section-shell::after,
+.hero-bg-canvas,
+.hero-smoke {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+.hero-bg-canvas {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  opacity: .98;
+}
+.hero.no-webgl .hero-bg-canvas,
+.hero-bg-canvas[hidden] { display: none !important; }
+.hero.section-shell::before {
+  z-index: 1;
+  inset: -12% -24% -8% -10%;
+  background:
+    radial-gradient(circle at 116% 50%, rgba(244,248,255,.72) 0%, rgba(190,214,255,.36) 8%, rgba(96,126,218,.20) 21%, transparent 47%),
+    radial-gradient(circle at 100% 36%, rgba(120,154,245,.20), rgba(44,62,142,.15) 34%, transparent 68%),
+    radial-gradient(circle at 92% 68%, rgba(94,124,222,.22), rgba(28,42,110,.17) 38%, transparent 74%),
+    linear-gradient(90deg, #000 0%, #000 34%, rgba(0,0,0,.96) 50%, rgba(5,10,28,.72) 72%, rgba(36,58,140,.42) 100%);
+  filter: blur(12px) saturate(1.08);
+  opacity: 1;
+  animation: cssLightBreath 9s ease-in-out infinite alternate;
+}
+.hero.section-shell::after {
+  z-index: 1;
+  inset: -8% -16% -8% 18%;
+  opacity: .92;
+  background:
+    radial-gradient(circle at 86% 47%, rgba(220,234,255,.16), rgba(116,148,236,.22) 20%, rgba(55,76,162,.18) 39%, transparent 62%),
+    radial-gradient(circle at 72% 55%, rgba(156,188,255,.20), rgba(66,88,180,.18) 31%, transparent 58%),
+    radial-gradient(circle at 98% 58%, rgba(76,100,190,.32), rgba(22,34,92,.24) 42%, transparent 70%);
+  filter: blur(46px) saturate(1.12) contrast(.96);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.18) 16%, rgba(0,0,0,.65) 42%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.18) 16%, rgba(0,0,0,.65) 42%, #000 100%);
+  animation: cssSmokeDrift 34s cubic-bezier(.36,0,.18,1) infinite;
+}
+.hero-smoke {
+  z-index: 1;
+  inset: -18% -18% -18% 24%;
+  border-radius: 0;
+  opacity: .96;
+  background:
+    radial-gradient(circle at 76% 43%, rgba(205,224,255,.17), rgba(104,136,228,.25) 19%, rgba(44,64,150,.18) 39%, transparent 64%),
+    radial-gradient(circle at 62% 52%, rgba(150,184,255,.16), rgba(72,96,198,.20) 24%, transparent 55%),
+    radial-gradient(circle at 91% 60%, rgba(142,174,255,.18), rgba(54,76,170,.24) 27%, rgba(14,24,74,.20) 54%, transparent 76%),
+    radial-gradient(circle at 48% 64%, rgba(80,104,220,.13), rgba(30,44,122,.12) 33%, transparent 66%);
+  filter: blur(68px) saturate(1.18) contrast(.92);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.22) 16%, rgba(0,0,0,.78) 46%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.22) 16%, rgba(0,0,0,.78) 46%, #000 100%);
+  animation: cssSmokeDrift 34s cubic-bezier(.36,0,.18,1) infinite;
+}
+.hero-content {
+  position: relative;
+  z-index: 2;
+  width: min(920px, 94vw);
+}
+.hero .hero-badge {
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(5, 7, 12, .38);
+  color: rgba(255,255,255,.66);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.hero .openai-mark { filter: invert(1); opacity: .88; }
+.ray-title-wrap {
+  position: relative;
+  isolation: isolate;
+  width: min(980px, 94vw);
+}
+.ray-title {
+  position: relative;
+  margin: 28px 0 0;
+  font-size: clamp(6.2rem, 20vw, 13.2rem);
+  line-height: .82;
+  font-weight: 650;
+  letter-spacing: -0.085em;
+  color: rgba(214,224,246,.16);
+  text-shadow: 16px 0 38px rgba(130,160,245,.12), 46px 0 110px rgba(80,120,240,.22);
+  filter: saturate(.98);
+  user-select: none;
+}
+.ray-title::before,
+.ray-title::after {
+  content: none !important;
+  display: none !important;
+}
+.hero .hero-subtitle {
+  color: rgba(255,255,255,.88);
+}
+.hero .hero-copy {
+  color: rgba(255,255,255,.60);
+}
+.hero .button.secondary {
+  background: rgba(255,255,255,.92);
+  color: #050505;
+  box-shadow: rgba(255,255,255,.15) 0 0 0 1px inset, rgba(0,0,0,.20) 0 16px 34px -20px;
+}
+.hero .ai-button {
+  color: #050505;
+  background: rgba(255,255,255,.94);
+  box-shadow: rgba(255,255,255,.18) 0 0 0 1px inset, rgba(142,176,255,.28) 0 0 36px -10px;
+}
+
+@keyframes cssLightBreath {
+  from { transform: translateX(-1.5%) scale(1); opacity: .88; }
+  to { transform: translateX(1.8%) scale(1.04); opacity: 1; }
+}
+@keyframes cssSmokeDrift {
+  0% { transform: translateX(7%) translateY(1%) scale(1); opacity: .18; }
+  15% { opacity: .74; }
+  72% { transform: translateX(-8.5%) translateY(-1.3%) scale(1.10); opacity: .92; }
+  100% { transform: translateX(-10.5%) translateY(-1.5%) scale(1.13); opacity: .10; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg-canvas { display: none !important; }
+  .hero.section-shell::before,
+  .hero.section-shell::after,
+  .hero-smoke { animation: none !important; }
+}
+
+@media (max-width: 780px) {
+  .hero.section-shell {
+    min-height: calc(100svh - 62px);
+    padding: 68px 18px 78px;
+  }
+  .hero-content { width: 100%; }
+  .ray-title { font-size: clamp(5.2rem, 27vw, 7.8rem); }
+  .hero-smoke { inset: -16% -22% -18% 10%; filter: blur(54px) saturate(1.14); }
+}

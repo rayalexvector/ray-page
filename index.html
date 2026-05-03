@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=mimo-keyboard" />
+  <link rel="stylesheet" href="styles.css?v=rev10-xai-hero" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -119,7 +119,10 @@
   </header>
 
   <main id="top">
-    <section class="hero section-shell">
+    <section class="hero section-shell" aria-label="Ray hero">
+      <canvas id="hero-bg" class="hero-bg-canvas" aria-hidden="true"></canvas>
+      <div class="hero-smoke" aria-hidden="true"></div>
+      <div class="hero-content">
       <div class="hero-badge" aria-label="Building with Hermes Agent, Design by OpenAI Codex">
         <img class="openai-mark" src="assets/openai-mark.svg" alt="" width="24" height="24" aria-hidden="true" decoding="async" />
         <span class="hero-badge-copy">
@@ -127,7 +130,9 @@
           <span>Design by OpenAI Codex</span>
         </span>
       </div>
-      <h1>Ray</h1>
+      <div class="ray-title-wrap">
+        <h1 class="ray-title" data-title="Ray">Ray</h1>
+      </div>
       <p class="hero-subtitle">AI Agent产品探索者 / 独立开发者</p>
       <p class="hero-copy">
         关注 AI Agent、自动化工作流与个人创造力工具。把复杂问题拆成可运行的系统，
@@ -156,6 +161,7 @@
           <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2.5l1.42 5.04L18.5 9l-5.08 1.46L12 15.5l-1.42-5.04L5.5 9l5.08-1.46L12 2.5Zm6.2 9.8.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7ZM6 13l1.05 3.2L10.25 17l-3.2.8L6 21l-1.05-3.2-3.2-.8 3.2-.8L6 13Z"/></svg>
           <span>AI Chat</span>
         </button>
+      </div>
       </div>
     </section>
 
@@ -464,6 +470,209 @@
     <span>© <span id="year"></span> Ray</span>
     <span>AIAgent Product Explorer / Indie Developer</span>
   </footer>
+
+  <script id="hero-webgl-smoke">
+  (() => {
+    const canvas = document.getElementById('hero-bg');
+    const hero = canvas?.closest('.hero');
+    if (!canvas || !hero) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      hero.classList.add('no-webgl');
+      canvas.hidden = true;
+      return;
+    }
+
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) {
+      hero.classList.add('no-webgl');
+      canvas.hidden = true;
+      return;
+    }
+    hero.classList.add('webgl-ok');
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = hero.getBoundingClientRect();
+      const width = Math.max(1, rect.width);
+      const height = Math.max(1, rect.height);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+
+    const vertexShaderSource = `
+      attribute vec2 a_position;
+      void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
+    `;
+
+    const fragmentShaderSource = `
+      precision highp float;
+      uniform vec2 u_resolution;
+      uniform float u_time;
+      uniform vec2 u_mouse;
+
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
+      float noise(vec2 p){
+        vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+        float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));
+        return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+      }
+      float fbm(vec2 p){
+        float v=0., a=.5;
+        for(int i=0;i<6;i++){ v+=a*noise(p); p*=2.03; a*=.5; }
+        return v;
+      }
+      float softEllipse(vec2 p, vec2 c, vec2 s, float k){ return exp(-pow(length((p-c)*s), k)); }
+
+      void main(){
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        vec2 mouse = u_mouse / u_resolution.xy;
+        float t = u_time * 0.105;
+
+        vec3 black = vec3(0.0015,0.0025,0.0065);
+        vec3 deepBlue = vec3(0.030,0.045,0.105);
+        vec3 hazeBlue = vec3(0.16,0.23,0.48);
+        vec3 softBlue = vec3(0.38,0.55,0.98);
+        vec3 whiteBlue = vec3(0.92,0.97,1.15);
+        vec3 col = black;
+
+        vec2 lightPos = vec2(1.145, 0.515);
+        vec2 lp = uv - lightPos;
+        float dist = length(lp * vec2(0.78, 1.38));
+        float source = exp(-dist * 6.05);
+        float sideMask = smoothstep(0.20, 0.98, uv.x);
+
+        float mainWash = exp(-(1.0 - uv.x) * 4.22) * exp(-abs(uv.y - 0.515) * 1.42);
+        mainWash *= sideMask;
+
+        float leftFlow = smoothstep(0.0, 1.0, fract(u_time * .026));
+        vec2 q = uv * vec2(1.42, 2.02);
+        vec2 warp = vec2(
+          fbm(q + vec2(t*.18, -t*.08)),
+          fbm(q*1.12 + vec2(t*.10, t*.16))
+        );
+        vec2 p = (uv - vec2(0.61, 0.505)) * vec2(2.75, 2.04) + (warp - .5) * 1.58;
+        float smoke = fbm(p + vec2(t*.24, t*.06));
+        smoke = smoothstep(.15, .72, smoke);
+        float smokeBand = exp(-abs(uv.y - 0.505) * 1.24) * smoothstep(.08,.94,uv.x);
+        smoke *= smokeBand;
+
+        float smokeBreath = sin(u_time * .15) * .5 + .5;
+        vec2 plumeCenter = vec2(0.76 - 0.095*leftFlow + 0.010*sin(u_time*.07), 0.505 + 0.014*sin(u_time*.08));
+        vec2 plumeUv = (uv - plumeCenter) * vec2(1.18, 1.58);
+        plumeUv += (warp - .5) * (.92 + smokeBreath*.34);
+        float plumeShape = softEllipse(uv, plumeCenter, vec2(1.58,2.50), 2.0);
+        float plumeNoise = fbm(plumeUv + vec2(t*.22, t*.045));
+        float plume = plumeShape * smoothstep(.08,.66,plumeNoise) * smoothstep(.07,.92,uv.x);
+
+        vec2 innerCenter = vec2(0.53 - 0.070*leftFlow + 0.008*sin(u_time*.10), 0.502 + 0.010*sin(u_time*.14));
+        float innerCloud = softEllipse(uv, innerCenter, vec2(2.02,3.52), 2.0);
+        innerCloud *= smoothstep(.12,.76, fbm((uv - innerCenter)*vec2(1.42,2.08) + vec2(t*.16,t*.035)));
+        innerCloud *= smoothstep(.04,.66,uv.x);
+
+        float broadRay = exp(-dist*2.85) * exp(-abs(uv.y-.50)*1.06) * smoothstep(.42,1.0,uv.x);
+        float edgeBlast = exp(-(1.0 - uv.x) * 7.8) * exp(-abs(uv.y - .51) * 1.08);
+        edgeBlast *= smoothstep(.62, 1.0, uv.x);
+        float mouseGlow = exp(-length((uv - mouse) * vec2(1.1,1.0))*8.0) * sideMask * .12;
+
+        col += deepBlue * mainWash * .31;
+        col += hazeBlue * mainWash * .27;
+        col += softBlue * smoke * .50;
+        col += hazeBlue * plume * .94;
+        col += softBlue * innerCloud * .58;
+        col += whiteBlue * broadRay * .13;
+        col += whiteBlue * source * .98;
+        col += whiteBlue * edgeBlast * .18;
+        col += softBlue * mouseGlow;
+
+        float leftPreserve = smoothstep(0.06, 0.55, uv.x);
+        col *= mix(0.18, 1.0, leftPreserve);
+
+        float vignette = smoothstep(1.16, .18, length((uv - vec2(.63,.52))*vec2(1.05,.96)));
+        col *= vignette + .16;
+        col *= mix(.54, 1.0, smoothstep(.10,.30,uv.y) * (1.0 - smoothstep(.94,1.0,uv.y)));
+
+        col = max(col - vec3(.018,.018,.020), 0.0);
+        col = mix(col, whiteBlue, source*.095 + edgeBlast*.040 + broadRay*.012);
+        col = pow(col, vec3(.91));
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    function createShader(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+
+    const vertexShader = createShader(gl.VERTEX_SHADER, vertexShaderSource);
+    const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+    if (!vertexShader || !fragmentShader) {
+      hero.classList.add('no-webgl');
+      canvas.hidden = true;
+      return;
+    }
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error(gl.getProgramInfoLog(program));
+      hero.classList.add('no-webgl');
+      canvas.hidden = true;
+      return;
+    }
+    gl.useProgram(program);
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+    const timeLocation = gl.getUniformLocation(program, 'u_time');
+    const mouseLocation = gl.getUniformLocation(program, 'u_mouse');
+
+    let mx = 0;
+    let my = 0;
+    function setDefaultMouse() {
+      mx = canvas.width * .86;
+      my = canvas.height * .52;
+    }
+    function updateMouse(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      mx = (clientX - rect.left) * dpr;
+      my = (rect.height - (clientY - rect.top)) * dpr;
+    }
+    const resizeAndSeed = () => { resize(); setDefaultMouse(); };
+    resizeAndSeed();
+    window.addEventListener('resize', resizeAndSeed, { passive: true });
+    window.addEventListener('mousemove', (event) => updateMouse(event.clientX, event.clientY), { passive: true });
+    window.addEventListener('touchmove', (event) => {
+      if (event.touches?.length) updateMouse(event.touches[0].clientX, event.touches[0].clientY);
+    }, { passive: true });
+
+    const start = performance.now();
+    function render(now) {
+      gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+      gl.uniform1f(timeLocation, (now - start) / 1000);
+      gl.uniform2f(mouseLocation, mx, my);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  })();
+  </script>
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
