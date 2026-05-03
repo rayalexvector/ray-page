@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=rev13-link-card-glass" />
+  <link rel="stylesheet" href="styles.css?v=rev14-title-subtle" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -636,8 +636,9 @@
           + fbm(vq * 6.0 + time) * 2.2
         ) * 0.5 + 0.5;
 
-        float vortexMask = softEllipse(uv, vortexCenter, vec2(0.25, 0.22), 6.2);
-        float vortex = smoothstep(0.50, 0.92, spiralRaw) * vortexMask * 0.34;
+        float vortexMask = softEllipse(uv, vortexCenter, vec2(0.34, 0.30), 3.8);
+        float vortexBlend = smoothstep(0.24, 0.82, smokeMid * 0.62 + smokeFine * 0.38);
+        float vortex = vortexBlend * vortexMask * 0.10;
 
         // 横向轻微光束/拖尾，模拟强光穿过雾的散射
         float horizontalRay = exp(-pow((uv.y - 0.525) / 0.135, 2.0));
