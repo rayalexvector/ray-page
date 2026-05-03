@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=rev11-fluid-hero-2" />
+  <link rel="stylesheet" href="styles.css?v=rev13-link-card-glass" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -131,7 +131,7 @@
         </span>
       </div>
       <div class="ray-title-wrap">
-        <h1 class="ray-title" data-title="Ray">Ray</h1>
+        <h1 class="ray-title" data-title="Ray" data-text="Ray" aria-label="Ray">Ray</h1>
       </div>
       <p class="hero-subtitle">AI Agent产品探索者 / 独立开发者</p>
       <p class="hero-copy">
@@ -509,83 +509,217 @@
 
     const fragmentShaderSource = `
       precision highp float;
+
       uniform vec2 u_resolution;
       uniform float u_time;
-      uniform vec2 u_mouse;
+
+      #define TAU 6.28318530718
       #define OCTAVES 6
 
-      mat2 rot(float a){ float s=sin(a), c=cos(a); return mat2(c,-s,s,c); }
-      float hash(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }
-      float noise(vec2 p){
-        vec2 i=floor(p); vec2 f=fract(p);
-        float a=hash(i), b=hash(i+vec2(1.0,0.0)), c=hash(i+vec2(0.0,1.0)), d=hash(i+vec2(1.0,1.0));
-        vec2 u=f*f*(3.0-2.0*f);
-        return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
+      mat2 rot(float a){
+        float s = sin(a);
+        float c = cos(a);
+        return mat2(c, -s, s, c);
       }
+
+      float hash(vec2 p){
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      float noise(vec2 p){
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+
+        vec2 u = f * f * (3.0 - 2.0 * f);
+
+        return mix(a, b, u.x)
+          + (c - a) * u.y * (1.0 - u.x)
+          + (d - b) * u.x * u.y;
+      }
+
       float fbm(vec2 p){
-        float v=0.0; float a=0.5; vec2 shift=vec2(100.0);
-        for(int i=0;i<OCTAVES;i++){ v+=a*noise(p); p=rot(0.55)*p*2.0+shift; a*=0.5; }
-        return v;
+        float value = 0.0;
+        float amp = 0.5;
+        for(int i = 0; i < OCTAVES; i++){
+          value += amp * noise(p);
+          p = rot(0.52) * p * 2.02 + vec2(31.7, 19.2);
+          amp *= 0.52;
+        }
+        return value;
+      }
+
+      float softEllipse(vec2 uv, vec2 center, vec2 radius, float power){
+        vec2 q = (uv - center) / radius;
+        return exp(-power * dot(q, q));
       }
 
       void main(){
-        vec2 uv=gl_FragCoord.xy/u_resolution.xy;
-        float aspect=u_resolution.x/u_resolution.y;
-        float t=u_time*0.07;
-        vec2 anchor=vec2(0.885,0.52);
-        vec2 q=uv-anchor;
-        q.x*=aspect;
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        float aspect = u_resolution.x / u_resolution.y;
 
-        float body=exp(-3.1*length(q/vec2(0.56,0.98)))
-          +0.42*exp(-7.8*length((uv-vec2(0.79,0.52))/vec2(0.32,0.70)));
-        vec2 warp1=vec2(
-          fbm(q*1.85+vec2(0.0,t*0.85)),
-          fbm(q*1.85+vec2(4.8,-t*0.72))
-        );
-        vec2 warp2=vec2(
-          fbm(rot(0.25)*q*2.7+warp1*1.8+vec2(2.0,t*0.45)),
-          fbm(rot(-0.35)*q*2.6+warp1*1.8+vec2(7.0,-t*0.38))
-        );
-        float n1=fbm(q*3.0+warp1*2.2+warp2*1.4);
-        float n2=fbm(rot(0.18)*q*4.6+warp2*2.0-vec2(t*0.55,0.0));
-        float field=mix(n1,n2,0.52);
-        float plume=smoothstep(0.22,0.96,field)*body;
-        float core=exp(-16.0*length((uv-vec2(0.992,0.53))/vec2(0.18,0.45)));
-        float rim=exp(-8.0*length((uv-vec2(0.93,0.53))/vec2(0.24,0.58)));
-        float spill=exp(-pow((uv.x-0.76)/0.26,2.0)-pow((uv.y-0.54)/0.86,2.0));
-        float breathe=0.98+0.03*sin(u_time*0.55);
-        float plumeHigh=smoothstep(0.42,0.96,field);
-        float plumeVeil=(1.0-smoothstep(0.74,1.0,field))*0.65;
+        float time = u_time * 0.058;
 
-        vec3 col=vec3(0.0);
-        col+=vec3(0.010,0.020,0.060)*body*0.95;
-        col+=vec3(0.030,0.070,0.220)*spill*0.50;
-        col+=vec3(0.060,0.120,0.360)*plume*0.95;
-        col+=vec3(0.105,0.190,0.500)*plume*plumeHigh*0.32;
-        col+=vec3(0.018,0.034,0.105)*plume*plumeVeil*0.50;
-        col+=vec3(0.450,0.580,0.950)*rim*0.95;
-        col+=vec3(0.850,0.920,1.000)*core*1.35;
-        float edgeLight=pow(smoothstep(0.68,1.0,uv.x),1.65)*exp(-pow((uv.y-0.52)/0.82,2.0));
-        col+=vec3(0.150,0.240,0.680)*edgeLight*0.34;
-        col+=vec3(0.620,0.760,1.000)*edgeLight*0.085;
+        // 右侧主光源位置：固定，避免廉价漂移感
+        vec2 source = vec2(1.03, 0.53);
 
-        float smokeDetail=smoothstep(0.20,0.88,fbm(q*5.6+warp2*2.3+vec2(0.0,t*0.6)));
-        col+=vec3(0.12,0.16,0.28)*smokeDetail*body*0.12;
-        col+=vec3(0.24,0.30,0.48)*smokeDetail*rim*0.10;
+        vec2 q = uv - source;
+        q.x *= aspect;
 
-        vec2 mouse=u_mouse/u_resolution.xy;
-        float mouseGlow=exp(-length((uv-mouse)*vec2(1.1,1.0))*8.0)*smoothstep(0.34,1.0,uv.x);
-        col+=vec3(0.10,0.16,0.38)*mouseGlow*0.055;
+        // 整体光雾体积：大轮廓稳定
+        float wideBody = softEllipse(uv, vec2(0.88, 0.52), vec2(0.48, 0.78), 2.25);
+        float midBody  = softEllipse(uv, vec2(0.92, 0.52), vec2(0.31, 0.58), 2.95);
+        float coreBody = softEllipse(uv, vec2(1.02, 0.52), vec2(0.17, 0.40), 3.85);
 
-        col*=breathe;
-        float leftMask=smoothstep(0.03,0.74,uv.x);
-        col*=leftMask;
-        float vignette=smoothstep(1.25,0.08,length((uv-0.5)*vec2(1.02,1.24)));
-        col*=vignette;
-        col*=mix(0.70,1.0,smoothstep(0.08,0.32,uv.y)*(1.0-smoothstep(0.92,1.0,uv.y)));
-        float grain=(hash(gl_FragCoord.xy*0.87+u_time)-0.5)*0.018;
-        col=max(col+grain,vec3(0.0));
-        gl_FragColor=vec4(col,1.0);
+        // 向左渗透的环境光，不是圆形光晕
+        float leftSpill = softEllipse(uv, vec2(0.72, 0.52), vec2(0.46, 0.82), 3.20);
+        leftSpill *= smoothstep(0.18, 0.92, uv.x);
+
+        // 旋涡坐标：让右侧内部像液态光雾
+        float r = length(q);
+        float a = atan(q.y, q.x);
+
+        vec2 swirl = q;
+        swirl = rot(0.55 / (1.0 + r * 5.0) + sin(time * 1.7) * 0.08) * swirl;
+
+        vec2 warpA = vec2(
+          fbm(swirl * 2.2 + vec2(0.0, time * 1.15)),
+          fbm(swirl * 2.2 + vec2(9.2, -time * 0.92))
+        ) - 0.5;
+
+        vec2 warpB = vec2(
+          fbm(swirl * 4.1 + warpA * 2.4 + vec2(time * 0.35, 3.0)),
+          fbm(swirl * 3.8 + warpA * 2.1 + vec2(7.0, -time * 0.28))
+        ) - 0.5;
+
+        vec2 flow = swirl + warpA * 0.18 + warpB * 0.10;
+
+        // 主烟雾层：柔和、大面积
+        float smokeLarge = fbm(flow * 2.8 + vec2(-time * 0.45, time * 0.24));
+        float smokeMid   = fbm(flow * 5.2 + warpA * 1.4 + vec2(time * 0.24, -time * 0.42));
+        float smokeFine  = fbm(flow * 9.4 + warpB * 1.6 + vec2(-time * 0.36, time * 0.18));
+
+        float smoke = smokeLarge * 0.30 + smokeMid * 0.32 + smokeFine * 0.38;
+
+        // 烟雾只在右侧光体里出现，避免满屏脏
+        float plumeMask = smoothstep(0.03, 0.78, wideBody + midBody * 0.75);
+        float plume = smoothstep(0.28, 0.88, smoke) * plumeMask;
+
+        // 丝状流光：关键！让它不像普通 gradient
+        float threadBase = sin(
+          (flow.x * 2.4 + flow.y * 7.2 + smokeLarge * 3.6 - time * 1.25) * TAU
+        ) * 0.5 + 0.5;
+
+        float threads = smoothstep(0.66, 0.95, threadBase);
+        threads *= smoothstep(0.28, 0.86, smokeMid);
+        threads *= plumeMask;
+        threads *= 0.70;
+
+        // 右上角轻微旋涡纹理，参考图里右上有这种涡状光纹
+        vec2 vortexCenter = vec2(0.91, 0.675);
+        vec2 vq = uv - vortexCenter;
+        vq.x *= aspect;
+
+        float vr = length(vq);
+        float va = atan(vq.y, vq.x);
+
+        float spiralRaw = sin(
+          va * 4.4
+          + vr * 28.0
+          - time * 2.4
+          + fbm(vq * 6.0 + time) * 2.2
+        ) * 0.5 + 0.5;
+
+        float vortexMask = softEllipse(uv, vortexCenter, vec2(0.25, 0.22), 6.2);
+        float vortex = smoothstep(0.50, 0.92, spiralRaw) * vortexMask * 0.34;
+
+        // 横向轻微光束/拖尾，模拟强光穿过雾的散射
+        float horizontalRay = exp(-pow((uv.y - 0.525) / 0.135, 2.0));
+        horizontalRay *= smoothstep(0.44, 1.0, uv.x);
+        horizontalRay *= exp(-pow((uv.x - 0.89) / 0.36, 2.0));
+        horizontalRay *= 0.38 + 0.62 * fbm(vec2(uv.y * 9.0, time * 0.8));
+        horizontalRay *= 0.22;
+
+        // 右侧白色核心
+        float hotCore = softEllipse(uv, vec2(1.05, 0.525), vec2(0.11, 0.28), 4.5);
+        float hotEdge = softEllipse(uv, vec2(0.99, 0.525), vec2(0.18, 0.40), 3.5);
+
+        // 轻微呼吸，不要过度动画
+        float breathe = 0.985 + 0.025 * sin(u_time * 0.52);
+
+        vec3 blackBlue = vec3(0.004, 0.007, 0.018);
+        vec3 deepBlue  = vec3(0.018, 0.035, 0.105);
+        vec3 coldBlue  = vec3(0.060, 0.115, 0.310);
+        vec3 softVio   = vec3(0.125, 0.135, 0.290);
+        vec3 iceBlue   = vec3(0.410, 0.585, 0.940);
+        vec3 whiteBlue = vec3(0.850, 0.930, 1.000);
+
+        vec3 col = vec3(0.0);
+
+        // 深色冷底
+        col += blackBlue * wideBody * 0.95;
+
+        // 大面积环境蓝光
+        col += deepBlue * leftSpill * 0.95;
+        col += coldBlue * wideBody * 0.36;
+        col += softVio * plume * 0.26;
+
+        // 内部流体烟雾
+        col += coldBlue * plume * 0.72;
+        col += iceBlue * plume * 0.34;
+
+        // 丝状纹理与旋涡
+        col += iceBlue * threads * 0.54;
+        col += whiteBlue * threads * hotEdge * 0.52;
+        col += iceBlue * vortex * 0.48;
+
+        // 光束拖尾
+        col += iceBlue * horizontalRay * 0.18;
+
+        // 右侧核心高光
+        col += iceBlue * hotEdge * 0.94;
+        col += whiteBlue * hotCore * 1.18;
+
+        // 防止中心变成死白块，加入内部纹理压暗
+        float innerTexture = fbm(flow * 7.0 + vec2(time * 0.4, -time * 0.2));
+        col *= 0.92 + innerTexture * 0.15;
+
+        col *= breathe;
+
+        // 左侧压黑：让标题左边能隐入黑暗
+        float leftDark = smoothstep(0.06, 0.68, uv.x);
+        col *= mix(0.28, 1.0, leftDark);
+        float blackCurtain = 1.0 - smoothstep(0.18, 0.52, uv.x);
+        col *= 1.0 - blackCurtain * 0.22;
+
+        // 顶部和底部轻微压暗
+        float verticalHold = smoothstep(0.00, 0.14, uv.y) * smoothstep(1.00, 0.78, uv.y);
+        col *= mix(0.62, 1.0, verticalHold);
+
+        // 整体暗角
+        vec2 vc = uv - 0.5;
+        vc.x *= 0.92;
+        vc.y *= 1.18;
+        float vignette = 1.0 - smoothstep(0.46, 0.92, length(vc));
+        col *= mix(0.42, 1.0, vignette);
+
+        // 轻微胶片颗粒，增加真实网页录屏质感
+        float grain = hash(gl_FragCoord.xy + u_time * 23.0) - 0.5;
+        col += grain * 0.012;
+
+        // 黑位钳制，保持高级黑底
+        col = max(col, vec3(0.0));
+
+        // 轻微 tone mapping，避免过曝硬块
+        col = col / (1.0 + col * 0.42);
+
+        gl_FragColor = vec4(col, 1.0);
       }
     `;
 
@@ -654,7 +788,7 @@
     function render(now) {
       gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
       gl.uniform1f(timeLocation, (now - start) / 1000);
-      gl.uniform2f(mouseLocation, mx, my);
+      if (mouseLocation) gl.uniform2f(mouseLocation, mx, my);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       requestAnimationFrame(render);
     }
