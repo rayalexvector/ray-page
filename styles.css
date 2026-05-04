@@ -1825,3 +1825,86 @@ body.member-signed-in .member-tabs { display: none; }
   right: -0.12em;
   width: calc(100% + 0.12em);
 }
+
+/* ========= A. R 左下角黑场吞没精修版 ========= */
+
+.letter-r {
+  position: relative;
+  display: inline-block;
+
+  /* R 本体：左边更暗，右边保持受光 */
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.015) 0%,
+    rgba(72,84,126,0.08) 12%,
+    rgba(118,132,188,0.18) 28%,
+    rgba(156,172,226,0.36) 48%,
+    rgba(220,232,255,0.78) 78%,
+    rgba(255,255,255,0.98) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 左下到中部的“黑场压入感” */
+.letter-r::before {
+  content: attr(data-letter);
+  position: absolute;
+  inset: 0;
+  color: rgba(0, 0, 0, 0.44);
+  pointer-events: none;
+
+  -webkit-mask-image:
+    linear-gradient(
+      58deg,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.96) 18%,
+      rgba(0,0,0,0.70) 34%,
+      rgba(0,0,0,0.32) 50%,
+      rgba(0,0,0,0.00) 66%
+    );
+  mask-image:
+    linear-gradient(
+      58deg,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.96) 18%,
+      rgba(0,0,0,0.70) 34%,
+      rgba(0,0,0,0.32) 50%,
+      rgba(0,0,0,0.00) 66%
+    );
+
+  filter: blur(0.45px);
+}
+
+/* 左下角黑色核心：更像 Grok 的 G 被“咬掉” */
+.letter-r::after {
+  content: attr(data-letter);
+  position: absolute;
+  inset: 0;
+  color: rgba(0, 0, 0, 0.97);
+  pointer-events: none;
+
+  -webkit-mask-image:
+    radial-gradient(
+      118% 132% at 12% 86%,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.98) 16%,
+      rgba(0,0,0,0.90) 30%,
+      rgba(0,0,0,0.62) 46%,
+      rgba(0,0,0,0.26) 62%,
+      rgba(0,0,0,0.00) 80%
+    );
+  mask-image:
+    radial-gradient(
+      118% 132% at 12% 86%,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.98) 16%,
+      rgba(0,0,0,0.90) 30%,
+      rgba(0,0,0,0.62) 46%,
+      rgba(0,0,0,0.26) 62%,
+      rgba(0,0,0,0.00) 80%
+    );
+
+  filter: blur(0.55px);
+}
