@@ -1923,7 +1923,7 @@ body.member-signed-in .member-tabs { display: none; }
   font-weight: 700;
   font-size: clamp(102px, 17.4vw, 184px);
   line-height: 0.92;
-  letter-spacing: -0.088em;
+  letter-spacing: -0.03em;
   user-select: none;
 
   background: none !important;
@@ -2035,6 +2035,7 @@ body.member-signed-in .member-tabs { display: none; }
 
 /* a：中间过渡，不要太亮 */
 .letter-a {
+  margin-left: 0.015em;
   background: linear-gradient(
     90deg,
     rgba(120,135,190,0.22) 0%,
@@ -2048,6 +2049,7 @@ body.member-signed-in .member-tabs { display: none; }
 
 /* y：右侧明显受光，准备承接烟雾 */
 .letter-y {
+  margin-left: 0.028em;
   background: linear-gradient(
     90deg,
     rgba(168,186,238,0.46) 0%,
