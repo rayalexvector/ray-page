@@ -595,6 +595,7 @@
 
         // 标题区域接风的范围
         float titlePull = softEllipse(uv, vec2(0.47, 0.58), vec2(0.34, 0.22), 4.2);
+        float titleDrag = softEllipse(uv, vec2(0.56, 0.575), vec2(0.46, 0.18), 3.8);
 
         // 旋涡坐标：让右侧内部像液态光雾
         float r = length(q);
@@ -637,18 +638,28 @@
         threads *= plumeMask;
         threads *= 0.70;
 
-        // ===== 增加“吹动感”的丝状和拖尾 =====
-        float gustNoise = fbm(vec2(flow.x * 7.8, flow.y * 3.6) + vec2(time * 0.22, 0.0));
-        float gustMask  = smoothstep(0.54, 0.90, gustNoise) * windLane;
+        // ===== 更强的吹动幕感 / 丝状感 / 标题受风 =====
+        float gustNoise = fbm(vec2(flow.x * 8.8, flow.y * 3.2) + vec2(time * 0.28, 0.0));
+        float gustMask  = smoothstep(0.50, 0.90, gustNoise) * windLane;
 
-        // 大片被吹过去的雾幕
-        float blownVeil = smoothstep(0.22, 0.88, smokeLarge * 0.55 + smokeMid * 0.45) * windLane;
+        // 大片被风吹成幕的雾
+        float blownVeil = smoothstep(
+          0.18,
+          0.86,
+          smokeLarge * 0.62 + smokeMid * 0.56 + smokeFine * 0.16
+        ) * windLane;
 
-        // 增强标题区域受风
-        float titleSmear = blownVeil * titlePull;
+        // 被吹成更长的丝
+        float streaks = smoothstep(0.56, 0.92, smokeFine + gustNoise * 0.28) * windLane;
 
-        // 原来的 threads 再受一点风强化
-        threads *= 0.85 + windLane * 0.35;
+        // 标题区域额外被吹到
+        float titleSmear = blownVeil * (titlePull * 1.00 + titleDrag * 0.42);
+
+        // 再给标题周围加一层受风拖影
+        float titleMist = plume * (titlePull * 0.74 + titleDrag * 0.38);
+
+        // 原来的 threads 也强化，让它更像风带出来的丝状流光
+        threads *= 0.92 + windLane * 0.58 + titlePull * 0.22;
 
         // 右上角轻微旋涡纹理，参考图里右上有这种涡状光纹
         vec2 vortexCenter = vec2(0.91, 0.675);
@@ -693,43 +704,51 @@
         float breathe = 0.985 + 0.025 * sin(u_time * 0.52);
 
         vec3 blackBlue = vec3(0.003, 0.005, 0.015);
-        vec3 deepBlue  = vec3(0.015, 0.030, 0.090);
-        vec3 coldBlue  = vec3(0.055, 0.100, 0.270);
-        vec3 iceBlue   = vec3(0.40, 0.56, 0.90);
-        vec3 whiteBlue = vec3(0.89, 0.94, 1.00);
+        vec3 deepBlue  = vec3(0.014, 0.028, 0.088);
+        vec3 coldBlue  = vec3(0.055, 0.100, 0.275);
+        vec3 iceBlue   = vec3(0.42, 0.58, 0.92);
+        vec3 whiteBlue = vec3(0.91, 0.95, 1.00);
 
         vec3 col = vec3(0.0);
 
-        // ===== 颜色：右侧更白、更冷蓝，更像 Grok =====
-        col += blackBlue * wideBody * 0.92;
+        // ===== 底色与主光 =====
+        col += blackBlue * wideBody * 0.96;
 
-        col += deepBlue * leftSpill * 0.88;
-        col += coldBlue * wideBody  * 0.42;
+        col += deepBlue * leftSpill * 0.94;
+        col += coldBlue * wideBody  * 0.46;
 
-        // 主体烟雾
-        col += coldBlue * plume * 0.54;
-        col += iceBlue  * plume * 0.24;
+        // ===== 主体烟雾 =====
+        col += coldBlue * plume * 0.62;
+        col += iceBlue  * plume * 0.30;
 
-        // 被吹动的雾幕
-        col += coldBlue * blownVeil * 0.14;
-        col += iceBlue  * blownVeil * 0.22;
+        // ===== 被风吹成幕的雾 =====
+        col += coldBlue * blownVeil * 0.18;
+        col += iceBlue  * blownVeil * 0.29;
 
-        // 丝状流光
-        col += iceBlue   * threads * 0.36;
-        col += whiteBlue * threads * (hotEdge * 0.22 + windLane * 0.10);
+        // ===== 被风吹出来的丝 =====
+        col += coldBlue * streaks * 0.08;
+        col += iceBlue  * streaks * 0.26;
 
-        // 吹进标题区域的雾感
-        col += coldBlue  * titleSmear * 0.22;
-        col += iceBlue   * titleSmear * 0.20;
-        col += whiteBlue * titleSmear * 0.11;
+        // ===== 丝状流光 =====
+        col += iceBlue   * threads * 0.42;
+        col += whiteBlue * threads * (hotEdge * 0.26 + windLane * 0.16 + titlePull * 0.08);
 
-        // 你圈的右侧那一块：更强、更白
-        col += iceBlue   * rimGlow * 0.46;
-        col += whiteBlue * rimGlow * 0.18;
+        // ===== 吹进标题区域的雾感：这次明显加大 =====
+        col += coldBlue  * titleSmear * 0.38;
+        col += iceBlue   * titleSmear * 0.34;
+        col += whiteBlue * titleSmear * 0.20;
 
-        // 主高光增强
-        col += iceBlue   * hotEdge * 0.88;
-        col += whiteBlue * hotCore * 1.18;
+        // ===== 标题附近更直接的受风雾压 =====
+        col += coldBlue  * titleMist * 0.18;
+        col += iceBlue   * titleMist * 0.16;
+
+        // ===== 你圈的右侧亮块：更白、更像 Grok =====
+        col += iceBlue   * rimGlow * 0.64;
+        col += whiteBlue * rimGlow * 0.28;
+
+        // ===== 主高光强化 =====
+        col += iceBlue   * hotEdge * 0.96;
+        col += whiteBlue * hotCore * 1.28;
 
         // 防止中心变成死白块，加入内部纹理压暗
         float innerTexture = fbm(flow * 7.0 + vec2(time * 0.4, -time * 0.2));
