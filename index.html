@@ -131,7 +131,9 @@
         </span>
       </div>
       <div class="ray-title-wrap">
-        <h1 class="ray-title" data-title="Ray" data-text="Ray" aria-label="Ray">Ray</h1>
+        <h1 class="hero-title">
+          <span class="letter-r" data-letter="R">R</span>ay
+        </h1>
       </div>
       <p class="hero-subtitle">AI Agent产品探索者 / 独立开发者</p>
       <p class="hero-copy">
@@ -652,6 +654,19 @@
         float hotCore = softEllipse(uv, vec2(1.05, 0.525), vec2(0.11, 0.28), 4.5);
         float hotEdge = softEllipse(uv, vec2(0.99, 0.525), vec2(0.18, 0.40), 3.5);
 
+        // ========= B. y 字局部浸透增强 =========
+        // 只聚焦在 y 所在区域，不改变整团主光源
+        float yZone = softEllipse(uv, vec2(0.565, 0.585), vec2(0.12, 0.15), 7.2);
+        float yBridge = softEllipse(uv, vec2(0.61, 0.57), vec2(0.16, 0.18), 5.4);
+
+        // 让 y 区域更能“接住”右侧烟雾和流光
+        float yInvasion = max(yZone * 0.92, yBridge * 0.42);
+        yInvasion *= smoothstep(0.22, 0.94, leftSpill + wideBody * 0.48 + plume * 0.30);
+
+        float ySmoke     = plume * yInvasion;
+        float yFilament  = threads * yInvasion;
+        float yEdgeLight = yInvasion * (leftSpill * 0.52 + hotEdge * 0.34);
+
         // 轻微呼吸，不要过度动画
         float breathe = 0.985 + 0.025 * sin(u_time * 0.52);
 
@@ -680,6 +695,12 @@
         col += iceBlue * threads * 0.54;
         col += whiteBlue * threads * hotEdge * 0.52;
         col += iceBlue * vortex * 0.48;
+
+        // y 的局部浸透：不是单纯变亮，而是让雾和丝状光进入字形附近
+        col += coldBlue  * ySmoke     * 0.30;
+        col += iceBlue   * ySmoke     * 0.26;
+        col += iceBlue   * yFilament  * 0.40;
+        col += whiteBlue * yEdgeLight * 0.24;
 
         // 光束拖尾
         col += iceBlue * horizontalRay * 0.18;
