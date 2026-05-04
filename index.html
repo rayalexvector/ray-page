@@ -568,20 +568,33 @@
 
         float time = u_time * 0.058;
 
-        // 右侧主光源位置：固定，避免廉价漂移感
-        vec2 source = vec2(1.03, 0.53);
+        // ===== 右侧主光源：更强、更冷白、更贴近 Grok =====
+        vec2 source = vec2(1.075, 0.545);
 
         vec2 q = uv - source;
         q.x *= aspect;
 
-        // 整体光雾体积：大轮廓稳定
-        float wideBody = softEllipse(uv, vec2(0.88, 0.52), vec2(0.48, 0.78), 2.25);
-        float midBody  = softEllipse(uv, vec2(0.92, 0.52), vec2(0.31, 0.58), 2.95);
-        float coreBody = softEllipse(uv, vec2(1.02, 0.52), vec2(0.17, 0.40), 3.85);
+        // 大范围主体积光
+        float wideBody = softEllipse(uv, vec2(0.84, 0.55), vec2(0.58, 0.84), 2.30);
+        float midBody  = softEllipse(uv, vec2(0.96, 0.545), vec2(0.36, 0.62), 2.78);
 
-        // 向左渗透的环境光，不是圆形光晕
-        float leftSpill = softEllipse(uv, vec2(0.72, 0.52), vec2(0.46, 0.82), 3.20);
-        leftSpill *= smoothstep(0.18, 0.92, uv.x);
+        // 更亮的右侧边缘和核心
+        float hotEdge  = softEllipse(uv, vec2(1.005, 0.545), vec2(0.20, 0.40), 3.25);
+        float hotCore  = softEllipse(uv, vec2(1.075, 0.545), vec2(0.115, 0.27), 4.30);
+
+        // 给你圈的那一块再单独加一个更白的“贴边核心”
+        float rimGlow  = softEllipse(uv, vec2(0.985, 0.548), vec2(0.14, 0.26), 4.10);
+
+        // 往左溢出的冷蓝光
+        float leftSpill = softEllipse(uv, vec2(0.60, 0.56), vec2(0.55, 0.78), 3.0);
+        leftSpill *= smoothstep(0.10, 0.98, uv.x);
+
+        // 形成一条从右向左吹过来的“风道”
+        float windLane = exp(-pow((uv.y - 0.57) / 0.23, 2.0));
+        windLane *= smoothstep(0.26, 1.02, uv.x);
+
+        // 标题区域接风的范围
+        float titlePull = softEllipse(uv, vec2(0.47, 0.58), vec2(0.34, 0.22), 4.2);
 
         // 旋涡坐标：让右侧内部像液态光雾
         float r = length(q);
@@ -624,6 +637,19 @@
         threads *= plumeMask;
         threads *= 0.70;
 
+        // ===== 增加“吹动感”的丝状和拖尾 =====
+        float gustNoise = fbm(vec2(flow.x * 7.8, flow.y * 3.6) + vec2(time * 0.22, 0.0));
+        float gustMask  = smoothstep(0.54, 0.90, gustNoise) * windLane;
+
+        // 大片被吹过去的雾幕
+        float blownVeil = smoothstep(0.22, 0.88, smokeLarge * 0.55 + smokeMid * 0.45) * windLane;
+
+        // 增强标题区域受风
+        float titleSmear = blownVeil * titlePull;
+
+        // 原来的 threads 再受一点风强化
+        threads *= 0.85 + windLane * 0.35;
+
         // 右上角轻微旋涡纹理，参考图里右上有这种涡状光纹
         vec2 vortexCenter = vec2(0.91, 0.675);
         vec2 vq = uv - vortexCenter;
@@ -650,10 +676,6 @@
         horizontalRay *= 0.38 + 0.62 * fbm(vec2(uv.y * 9.0, time * 0.8));
         horizontalRay *= 0.22;
 
-        // 右侧白色核心
-        float hotCore = softEllipse(uv, vec2(1.05, 0.525), vec2(0.11, 0.28), 4.5);
-        float hotEdge = softEllipse(uv, vec2(0.99, 0.525), vec2(0.18, 0.40), 3.5);
-
         // ========= B. y 字局部浸透增强 =========
         // 只聚焦在 y 所在区域，不改变整团主光源
         float yZone = softEllipse(uv, vec2(0.565, 0.585), vec2(0.12, 0.15), 7.2);
@@ -670,43 +692,43 @@
         // 轻微呼吸，不要过度动画
         float breathe = 0.985 + 0.025 * sin(u_time * 0.52);
 
-        vec3 blackBlue = vec3(0.004, 0.007, 0.018);
-        vec3 deepBlue  = vec3(0.018, 0.035, 0.105);
-        vec3 coldBlue  = vec3(0.060, 0.115, 0.310);
-        vec3 softVio   = vec3(0.125, 0.135, 0.290);
-        vec3 iceBlue   = vec3(0.410, 0.585, 0.940);
-        vec3 whiteBlue = vec3(0.850, 0.930, 1.000);
+        vec3 blackBlue = vec3(0.003, 0.005, 0.015);
+        vec3 deepBlue  = vec3(0.015, 0.030, 0.090);
+        vec3 coldBlue  = vec3(0.055, 0.100, 0.270);
+        vec3 iceBlue   = vec3(0.40, 0.56, 0.90);
+        vec3 whiteBlue = vec3(0.89, 0.94, 1.00);
 
         vec3 col = vec3(0.0);
 
-        // 深色冷底
-        col += blackBlue * wideBody * 0.95;
+        // ===== 颜色：右侧更白、更冷蓝，更像 Grok =====
+        col += blackBlue * wideBody * 0.92;
 
-        // 大面积环境蓝光
-        col += deepBlue * leftSpill * 0.95;
-        col += coldBlue * wideBody * 0.36;
-        col += softVio * plume * 0.26;
+        col += deepBlue * leftSpill * 0.88;
+        col += coldBlue * wideBody  * 0.42;
 
-        // 内部流体烟雾
-        col += coldBlue * plume * 0.72;
-        col += iceBlue * plume * 0.34;
+        // 主体烟雾
+        col += coldBlue * plume * 0.54;
+        col += iceBlue  * plume * 0.24;
 
-        // 丝状纹理与旋涡
-        col += iceBlue * threads * 0.54;
-        col += whiteBlue * threads * hotEdge * 0.52;
-        col += iceBlue * vortex * 0.48;
+        // 被吹动的雾幕
+        col += coldBlue * blownVeil * 0.14;
+        col += iceBlue  * blownVeil * 0.22;
 
-        // y 的局部浸透：不是单纯变亮，而是让雾和丝状光进入字形附近
-        col += coldBlue  * ySmoke     * 0.30;
-        col += iceBlue   * ySmoke     * 0.26;
-        col += iceBlue   * yFilament  * 0.40;
-        col += whiteBlue * yEdgeLight * 0.24;
+        // 丝状流光
+        col += iceBlue   * threads * 0.36;
+        col += whiteBlue * threads * (hotEdge * 0.22 + windLane * 0.10);
 
-        // 光束拖尾
-        col += iceBlue * horizontalRay * 0.18;
+        // 吹进标题区域的雾感
+        col += coldBlue  * titleSmear * 0.22;
+        col += iceBlue   * titleSmear * 0.20;
+        col += whiteBlue * titleSmear * 0.11;
 
-        // 右侧核心高光
-        col += iceBlue * hotEdge * 0.94;
+        // 你圈的右侧那一块：更强、更白
+        col += iceBlue   * rimGlow * 0.46;
+        col += whiteBlue * rimGlow * 0.18;
+
+        // 主高光增强
+        col += iceBlue   * hotEdge * 0.88;
         col += whiteBlue * hotCore * 1.18;
 
         // 防止中心变成死白块，加入内部纹理压暗
