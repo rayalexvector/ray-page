@@ -1908,3 +1908,254 @@ body.member-signed-in .member-tabs { display: none; }
 
   filter: blur(0.55px);
 }
+
+/* Ray 整体：不动背景光效，只重做文字层融合 */
+.ray-word {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  display: inline-flex !important;
+  align-items: baseline;
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+
+  font-weight: 700;
+  font-size: clamp(102px, 17.4vw, 184px);
+  line-height: 0.92;
+  letter-spacing: -0.088em;
+  user-select: none;
+
+  background: none !important;
+  color: transparent;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+
+  filter:
+    drop-shadow(0 0 7px rgba(150,175,255,0.08))
+    drop-shadow(0 0 20px rgba(110,138,235,0.13));
+
+  padding-right: 0.16em;
+}
+
+/* 避免旧的整词伪元素继续影响效果 */
+.ray-word::before,
+.ray-word::after {
+  content: none !important;
+}
+
+/* 所有字母都允许伪元素溢出 */
+.ray-word span {
+  position: relative;
+  display: inline-block;
+  overflow: visible;
+}
+
+/* R：先让本体左侧更暗，右侧才受光 */
+.letter-r {
+  position: relative;
+  display: inline-block;
+
+  /* R 本体整体压暗，不让它自己变成高亮字 */
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.00) 0%,
+    rgba(40,48,74,0.025) 18%,
+    rgba(64,76,118,0.06) 38%,
+    rgba(105,122,180,0.16) 62%,
+    rgba(150,170,230,0.34) 84%,
+    rgba(200,218,255,0.52) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* R 的左下黑场压入：不是整片压黑，而是从左下斜向吞入 */
+.letter-r::before {
+  content: attr(data-letter);
+  position: absolute;
+  inset: 0;
+  color: rgba(0,0,0,0.56);
+  pointer-events: none;
+
+  -webkit-mask-image:
+    linear-gradient(
+      50deg,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.96) 18%,
+      rgba(0,0,0,0.72) 34%,
+      rgba(0,0,0,0.34) 50%,
+      rgba(0,0,0,0.00) 68%
+    );
+  mask-image:
+    linear-gradient(
+      50deg,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.96) 18%,
+      rgba(0,0,0,0.72) 34%,
+      rgba(0,0,0,0.34) 50%,
+      rgba(0,0,0,0.00) 68%
+    );
+
+  filter: blur(0.45px);
+}
+
+/* R 的左下核心黑咬口，更接近 Grok G 的局部吞没 */
+.letter-r::after {
+  content: attr(data-letter);
+  position: absolute;
+  inset: 0;
+  color: rgba(0,0,0,0.98);
+  pointer-events: none;
+
+  -webkit-mask-image:
+    radial-gradient(
+      92% 110% at 6% 90%,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.98) 18%,
+      rgba(0,0,0,0.82) 34%,
+      rgba(0,0,0,0.44) 52%,
+      rgba(0,0,0,0.14) 68%,
+      rgba(0,0,0,0.00) 82%
+    );
+  mask-image:
+    radial-gradient(
+      92% 110% at 6% 90%,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.98) 18%,
+      rgba(0,0,0,0.82) 34%,
+      rgba(0,0,0,0.44) 52%,
+      rgba(0,0,0,0.14) 68%,
+      rgba(0,0,0,0.00) 82%
+    );
+
+  filter: blur(0.55px);
+}
+
+/* a：中间过渡，不要太亮 */
+.letter-a {
+  background: linear-gradient(
+    90deg,
+    rgba(120,135,190,0.22) 0%,
+    rgba(160,178,235,0.42) 46%,
+    rgba(218,232,255,0.76) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* y：右侧明显受光，准备承接烟雾 */
+.letter-y {
+  background: linear-gradient(
+    90deg,
+    rgba(168,186,238,0.46) 0%,
+    rgba(226,238,255,0.88) 42%,
+    rgba(255,255,255,1.00) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* y 的外层雾光：让它不是单纯变亮，而是像被光雾包住 */
+.letter-y::before {
+  content: attr(data-letter);
+  position: absolute;
+  inset: -0.03em -0.12em -0.05em -0.04em;
+  color: rgba(205,225,255,0.72);
+  filter: blur(16px);
+  opacity: 0.72;
+  mix-blend-mode: screen;
+  pointer-events: none;
+
+  -webkit-mask-image:
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.00) 0%,
+      rgba(0,0,0,0.30) 28%,
+      rgba(0,0,0,1.00) 70%,
+      rgba(0,0,0,1.00) 100%
+    );
+  mask-image:
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.00) 0%,
+      rgba(0,0,0,0.30) 28%,
+      rgba(0,0,0,1.00) 70%,
+      rgba(0,0,0,1.00) 100%
+    );
+}
+
+/* y 的字内高光侵入：模拟 Grok k 被右侧光擦亮 */
+.letter-y::after {
+  content: attr(data-letter);
+  position: absolute;
+  inset: 0;
+  color: rgba(248,252,255,0.68);
+  filter: blur(1.0px);
+  opacity: 0.64;
+  mix-blend-mode: screen;
+  pointer-events: none;
+
+  -webkit-mask-image:
+    radial-gradient(
+      92% 124% at 90% 54%,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.90) 26%,
+      rgba(0,0,0,0.52) 52%,
+      rgba(0,0,0,0.00) 78%
+    );
+  mask-image:
+    radial-gradient(
+      92% 124% at 90% 54%,
+      rgba(0,0,0,1) 0%,
+      rgba(0,0,0,0.90) 26%,
+      rgba(0,0,0,0.52) 52%,
+      rgba(0,0,0,0.00) 78%
+    );
+}
+
+/* ===== 修复拆字母后每个字母右侧被裁切 ===== */
+
+.ray-word,
+.hero-title {
+  overflow: visible !important;
+}
+
+/* 每个字母单独留出右侧安全区，但用负 margin 抵消，不改变整体排版 */
+.ray-word span,
+.hero-title span,
+.letter-r,
+.letter-a,
+.letter-y {
+  position: relative;
+  display: inline-block;
+  overflow: visible !important;
+  width: auto !important;
+  max-width: none !important;
+
+  padding-right: 0.12em;
+  margin-right: -0.12em;
+
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* 如果字母有伪元素，也把右侧渲染范围扩出去 */
+.ray-word span::before,
+.ray-word span::after,
+.hero-title span::before,
+.hero-title span::after {
+  overflow: visible !important;
+  right: -0.12em;
+  width: calc(100% + 0.12em);
+}
+
+/* 某些 Safari 情况下，透明文本更稳一些 */
+.letter-r,
+.letter-a,
+.letter-y {
+  -webkit-text-fill-color: transparent;
+}
