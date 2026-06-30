@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ray Toilet Arcade icon">
+  <defs>
+    <linearGradient id="g" x1="78" y1="60" x2="430" y2="452" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#25E4FF"/>
+      <stop offset="0.52" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#FF4FD8"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="118" fill="#07081F"/>
+  <circle cx="256" cy="256" r="188" fill="none" stroke="url(#g)" stroke-width="22" filter="url(#glow)"/>
+  <path d="M162 226c-12-72 52-123 94-72 42-51 106 0 94 72" fill="#10133A" stroke="#25E4FF" stroke-width="17" stroke-linecap="round"/>
+  <circle cx="201" cy="250" r="17" fill="#25E4FF"/>
+  <circle cx="311" cy="250" r="17" fill="#FF4FD8"/>
+  <path d="M231 287c18 18 32 18 50 0" fill="none" stroke="#F8FAFC" stroke-width="14" stroke-linecap="round"/>
+  <path d="M256 160l20 39 43 6-31 31 7 43-39-21-39 21 7-43-31-31 43-6 20-39z" fill="url(#g)" opacity=".92"/>
+  <text x="256" y="382" text-anchor="middle" font-family="system-ui, sans-serif" font-size="55" font-weight="800" fill="#F8FAFC">Ray</text>
+</svg>

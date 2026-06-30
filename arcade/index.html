@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#07081f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Ray Toilet Arcade / Ray 摸鱼游戏厅</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main id="app" aria-live="polite"></main>
+
+  <div class="orientation-lock" aria-hidden="true">
+    <div class="orientation-card">
+      <div class="orientation-emoji">📱</div>
+      <h2>请竖屏游玩</h2>
+      <p>Ray Cat 已经把手机转正等你啦。</p>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="games/cat-jump.js"></script>
+  <script src="games/merge-2048.js"></script>
+  <script src="games/dungeon.js"></script>
+  <script src="games/neon-balls.js"></script>
+  <script src="games/reaction.js"></script>
+  <script src="games/daily-card.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
