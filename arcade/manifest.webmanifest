@@ -1,7 +1,7 @@
 {
   "name": "Ray Toilet Arcade",
   "short_name": "Ray Arcade",
-  "description": "6 个适合摸鱼碎片时间玩的手机触屏小游戏合集。",
+  "description": "7 个适合摸鱼碎片时间玩的手机触屏小游戏合集。",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#07081f",

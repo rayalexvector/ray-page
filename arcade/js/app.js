@@ -114,6 +114,21 @@
           "图鉴会永久保存在本机，不需要登录。"
         ]
       }
+    },
+    {
+      id: "starfall",
+      title: "Ray Cat 星港突围",
+      icon: "🚀",
+      subtitle: "霓虹弹幕、猫爪闪避、AI 芯片升级的竖屏动作 Roguelite。",
+      externalUrl: "starfall/",
+      help: {
+        title: "Ray Cat 星港突围怎么玩",
+        lines: [
+          "这是完整独立动作游戏，会打开单独页面。",
+          "按住屏幕拖动 Ray Cat 闪避弹幕，猫爪光弹会自动射击。",
+          "收集芯片升级，使用闪避、护盾和 NOVA 挑战 Boss。"
+        ]
+      }
     }
   ];
 
@@ -149,6 +164,9 @@
       const cards = Storage.getCards();
       return `今日剩 ${Math.max(0, 3 - cards.draws)} 抽 · 图鉴 ${Object.keys(cards.collection || {}).length}/12`;
     }
+    if (game.id === "starfall") {
+      return "独立动作 Roguelite · 本地存档";
+    }
     return "准备开始";
   }
 
@@ -175,7 +193,7 @@
             </div>
           </div>
           <h1 class="hero-title"><span class="neon-text">Ray Toilet Arcade</span></h1>
-          <p class="hero-subtitle">6 个适合摸鱼时玩的手机小游戏。排队、休息、碎片时间，Ray Cat 陪你轻轻玩几分钟。</p>
+          <p class="hero-subtitle">7 个适合摸鱼时玩的手机小游戏。排队、休息、碎片时间，Ray Cat 陪你从轻量挑战一路突围到星港弹幕。</p>
           <div class="lobby-stats">
             <span class="stat-pill">🎮 ${stats.totalPlays || 0} 局</span>
             <span class="stat-pill">🏆 ${achievements.length}/${Object.keys(ACHIEVEMENTS).length} 成就</span>
@@ -199,7 +217,7 @@
           <div class="card-meta">${UI.escapeHtml(statText(game))}</div>
         </div>
         <div class="card-actions">
-          <button class="primary-btn" data-start="${game.id}">开始游戏</button>
+          <button class="primary-btn" data-start="${game.id}">${game.externalUrl ? "进入游戏" : "开始游戏"}</button>
         </div>
       `;
       grid.appendChild(card);
@@ -246,6 +264,12 @@
 
   function launchGame(id) {
     const meta = GAMES.find((game) => game.id === id);
+    if (meta && meta.externalUrl) {
+      UI.beep("ok");
+      UI.vibrate(16);
+      window.location.href = meta.externalUrl;
+      return;
+    }
     if (!meta || !meta.cls) {
       UI.toast("这个游戏暂时没有加载成功");
       return;

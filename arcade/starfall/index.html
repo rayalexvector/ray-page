@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#060713" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Ray Cat Starfall / Ray Cat 星港突围</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/icon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <canvas id="gameCanvas" aria-label="Ray Cat Starfall 游戏画布"></canvas>
+
+    <div id="topHud" class="hud top-hud hidden">
+      <button id="pauseBtn" class="icon-btn" type="button" aria-label="暂停游戏">Ⅱ</button>
+      <div class="stat-pill hp-pill" aria-label="生命值">
+        <span>HP</span><b id="hpText">6/6</b>
+        <i id="hpBar"></i>
+      </div>
+      <div class="stat-pill"><span>波次</span><b id="waveText">1</b></div>
+      <div class="stat-pill"><span>分数</span><b id="scoreText">0</b></div>
+      <button id="helpBtn" class="icon-btn" type="button" aria-label="查看帮助">?</button>
+    </div>
+
+    <div id="bottomHud" class="hud bottom-hud hidden">
+      <button id="dashBtn" class="skill-btn" type="button"><span>闪避</span><small id="dashCd">就绪</small></button>
+      <button id="aegisBtn" class="skill-btn" type="button"><span>护盾</span><small id="aegisCd">就绪</small></button>
+      <button id="novaBtn" class="skill-btn prime" type="button"><span>NOVA</span><small id="novaCd">就绪</small></button>
+    </div>
+
+    <section id="homeScreen" class="screen home-screen">
+      <div class="hero-card">
+        <div class="eyebrow">One-thumb iPhone web game</div>
+        <h1>Ray Cat<br><span>Starfall</span></h1>
+        <p class="subtitle">Ray Cat 星港突围：霓虹弹幕、猫爪闪避、AI 芯片升级的竖屏触屏动作 Roguelite。</p>
+        <div class="home-stats" id="homeStats"></div>
+        <button id="startBtn" class="main-btn pulse" type="button">开始突围</button>
+        <div class="menu-grid">
+          <button id="shopBtn" class="menu-btn" type="button">星港升级</button>
+          <button id="codexBtn" class="menu-btn" type="button">图鉴成就</button>
+          <button id="settingsBtn" class="menu-btn" type="button">设置</button>
+          <button id="homeHelpBtn" class="menu-btn" type="button">怎么玩</button>
+        </div>
+      </div>
+      <p class="footer-note">纯静态前端 · 本地存档 · 适合 iPhone 竖屏触屏游玩</p>
+    </section>
+
+    <section id="levelUpScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal upgrade-modal">
+        <div class="eyebrow">Ray Agent 升级选择</div>
+        <h2>选择一个本局强化</h2>
+        <div id="upgradeChoices" class="upgrade-grid"></div>
+      </div>
+    </section>
+
+    <section id="pauseScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal compact-modal">
+        <h2>暂停摸鱼</h2>
+        <p>Ray Cat 已在星港厕所门口安全悬停。</p>
+        <button id="resumeBtn" class="main-btn" type="button">继续游戏</button>
+        <button id="restartFromPauseBtn" class="ghost-btn" type="button">重新开始</button>
+        <button id="exitFromPauseBtn" class="ghost-btn" type="button">返回首页</button>
+      </div>
+    </section>
+
+    <section id="gameOverScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal gameover-modal">
+        <div class="eyebrow">本局结算</div>
+        <h2 id="resultTitle">星港短暂停电</h2>
+        <div id="resultStats" class="result-stats"></div>
+        <button id="quickRestartBtn" class="main-btn pulse" type="button">再来一局</button>
+        <button id="exitGameOverBtn" class="ghost-btn" type="button">返回首页</button>
+      </div>
+    </section>
+
+    <section id="shopScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal shop-modal panel-scroll">
+        <button class="close-btn" id="closeShopBtn" type="button" aria-label="关闭">×</button>
+        <div class="eyebrow">星港升级</div>
+        <h2>永久强化</h2>
+        <p class="hint">用本地保存的星屑金币升级 Ray Cat。所有数据只存在你的浏览器里。</p>
+        <div id="walletText" class="wallet"></div>
+        <div id="shopItems" class="shop-list"></div>
+      </div>
+    </section>
+
+    <section id="codexScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal codex-modal panel-scroll">
+        <button class="close-btn" id="closeCodexBtn" type="button" aria-label="关闭">×</button>
+        <div class="eyebrow">图鉴与成就</div>
+        <h2>Ray Cat 档案库</h2>
+        <div id="codexSummary" class="codex-summary"></div>
+        <div id="achievementList" class="achievement-list"></div>
+      </div>
+    </section>
+
+    <section id="settingsScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal compact-modal">
+        <button class="close-btn" id="closeSettingsBtn" type="button" aria-label="关闭">×</button>
+        <div class="eyebrow">设置</div>
+        <h2>摸鱼偏好</h2>
+        <label class="toggle-row"><span>音效</span><input id="soundToggle" type="checkbox" checked /></label>
+        <label class="toggle-row"><span>振动反馈</span><input id="vibrateToggle" type="checkbox" checked /></label>
+        <label class="toggle-row"><span>低闪烁模式</span><input id="calmToggle" type="checkbox" /></label>
+        <button id="resetSaveBtn" class="danger-btn" type="button">清空本地存档</button>
+      </div>
+    </section>
+
+    <section id="helpScreen" class="overlay hidden" aria-hidden="true">
+      <div class="modal compact-modal help-modal">
+        <button class="close-btn" id="closeHelpBtn" type="button" aria-label="关闭">×</button>
+        <div class="eyebrow">极简操作</div>
+        <h2>Ray Cat 星港突围</h2>
+        <p>按住屏幕拖动，Ray Cat 会跟随你的手指移动。</p>
+        <p>自动发射猫爪光弹，收集芯片升级，躲开 Bug、404 和老板弹幕。</p>
+        <p>底部三个大按钮分别是闪避、护盾和 NOVA 清屏。HP 归零就结束。</p>
+        <button id="startFromHelpBtn" class="main-btn" type="button">我知道了</button>
+      </div>
+    </section>
+
+    <div id="toastLayer" class="toast-layer" aria-live="polite"></div>
+
+    <div id="landscapeGuard" class="landscape-guard">
+      <div class="rotate-card">
+        <div class="rotate-icon">↻</div>
+        <h2>请竖屏游玩</h2>
+        <p>Ray Cat 的星港航线为 iPhone 竖屏触屏优化。</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "Ray Cat Starfall",
+  "short_name": "Starfall",
+  "description": "竖屏 iPhone 触屏网页动作 Roguelite：Ray Cat 星港突围。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060713",
+  "theme_color": "#060713",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
