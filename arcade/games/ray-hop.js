@@ -33,6 +33,7 @@
       this.perfects = 0;
       this.charge = 0;
       this.chargeTime = 0;
+      this.chargeHapticClock = 0;
       this.jump = null;
       this.previous = null;
       this.current = null;
@@ -80,6 +81,7 @@
 
     pause() {
       this.paused = true;
+      this.stopChargeHaptics();
       if (this.raf) cancelAnimationFrame(this.raf);
       this.raf = 0;
     }
@@ -93,6 +95,7 @@
 
     destroy() {
       this.running = false;
+      this.stopChargeHaptics();
       this.pause();
       if (this.resizeObs) this.resizeObs.disconnect();
       this.host.innerHTML = "";
@@ -139,6 +142,7 @@
       this.perfects = 0;
       this.charge = 0;
       this.chargeTime = 0;
+      this.chargeHapticClock = 0;
       this.jump = null;
       this.particles = [];
       this.floatTexts = [];
@@ -187,8 +191,10 @@
       this.state = "charging";
       this.charge = 0;
       this.chargeTime = 0;
+      this.chargeHapticClock = .12;
       this.player.squash = 0;
       UI.beep("tap");
+      this.haptic("chargePulse", [12, 68]);
       try { this.canvas.setPointerCapture(ev.pointerId); } catch (err) { /* noop */ }
       this.updateHud("松手起跳");
     }
@@ -196,6 +202,7 @@
     onUp(ev) {
       if (this.state !== "charging") return;
       ev.preventDefault();
+      this.stopChargeHaptics();
       try { this.canvas.releasePointerCapture(ev.pointerId); } catch (err) { /* noop */ }
       this.launch();
     }
@@ -222,7 +229,7 @@
       this.state = "jumping";
       this.player.squash = 0;
       UI.beep("ok");
-      UI.vibrate(16);
+      this.haptic("release", 16);
       this.updateHud("空中");
     }
 
@@ -252,12 +259,32 @@
         this.chargeTime += dt;
         this.charge = clamp(this.charge + dt * .82, 0, 1.08);
         this.player.squash = clamp(this.charge * .34, 0, .32);
+        this.updateChargeHaptics(dt);
         if (this.charge >= 1.08) this.updateHud("过载");
       } else if (this.state === "jumping" && this.jump) {
         this.updateJump(dt);
       }
       this.updateParticles(dt);
       this.updateTexts(dt);
+    }
+
+    haptic(kind, fallback) {
+      if (typeof UI.haptic === "function") UI.haptic(kind);
+      else UI.vibrate(fallback);
+    }
+
+    updateChargeHaptics(dt) {
+      this.chargeHapticClock -= dt;
+      if (this.chargeHapticClock > 0) return;
+      const strong = this.charge >= .92;
+      this.haptic(strong ? "chargePulseStrong" : "chargePulse", strong ? [18, 54] : [12, 68]);
+      this.chargeHapticClock = strong ? .09 : .12;
+    }
+
+    stopChargeHaptics() {
+      this.chargeHapticClock = 0;
+      if (typeof UI.stopHaptic === "function") UI.stopHaptic();
+      else UI.vibrate(0);
     }
 
     updateJump(dt) {

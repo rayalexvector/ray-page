@@ -34,10 +34,65 @@
   }
 
   function vibrate(pattern) {
-    if (!settings().vibrate) return;
+    if (!settings().vibrate && pattern !== 0) return;
     if (navigator.vibrate) {
-      try { navigator.vibrate(pattern || 20); } catch (err) { /* unsupported */ }
+      try { navigator.vibrate(pattern === undefined ? 20 : pattern); } catch (err) { /* unsupported */ }
     }
+  }
+
+  function stopHaptic() {
+    const webkit = window.webkit && window.webkit.messageHandlers;
+    const handlers = [
+      window.RayHaptics,
+      webkit && webkit.rayHaptic,
+      webkit && webkit.haptic
+    ];
+    for (const handler of handlers) {
+      try {
+        if (!handler) continue;
+        if (typeof handler.stop === "function") handler.stop();
+        else if (typeof handler.postMessage === "function") handler.postMessage({ type: "stop" });
+      } catch (err) { /* unsupported */ }
+    }
+    vibrate(0);
+  }
+
+  function haptic(kind) {
+    if (kind === "stop") { stopHaptic(); return; }
+    if (!settings().vibrate) return;
+    const type = kind || "light";
+    const impactType = {
+      chargePulse: "light",
+      chargePulseStrong: "medium",
+      warning: "medium"
+    }[type] || type;
+    const payload = { type, impact: impactType };
+    const webkit = window.webkit && window.webkit.messageHandlers;
+    const handlers = [
+      window.RayHaptics,
+      webkit && webkit.rayHaptic,
+      webkit && webkit.haptic
+    ];
+    for (const handler of handlers) {
+      try {
+        if (!handler) continue;
+        if (typeof handler === "function") { handler(payload); return; }
+        if (typeof handler.impact === "function") { handler.impact(impactType); return; }
+        if (type === "selection" && typeof handler.selection === "function") { handler.selection(); return; }
+        if (typeof handler.postMessage === "function") { handler.postMessage(payload); return; }
+      } catch (err) { /* unsupported */ }
+    }
+    const table = {
+      selection: 4,
+      light: 7,
+      charge: 5,
+      chargePulse: [12, 68],
+      chargePulseStrong: [18, 54],
+      release: 12,
+      success: [9, 18, 9],
+      warning: [6, 18, 6]
+    };
+    vibrate(table[type] || table.light);
   }
 
   function beep(kind) {
@@ -212,6 +267,8 @@
   UI.el = el;
   UI.escapeHtml = escapeHtml;
   UI.vibrate = vibrate;
+  UI.haptic = haptic;
+  UI.stopHaptic = stopHaptic;
   UI.beep = beep;
   UI.toast = toast;
   UI.confetti = confetti;
