@@ -227,8 +227,7 @@ import * as THREE from "../vendor/three.module.js";
         ev.stopPropagation();
         this.tryBurst();
       });
-      const layer = this.root.querySelector("[data-touch-layer]");
-      layer.addEventListener("pointerdown", (ev) => this.onPointerDown(ev));
+      this.canvas.addEventListener("pointerdown", (ev) => this.onPointerDown(ev));
       window.addEventListener("pointermove", (ev) => this.onPointerMove(ev));
       window.addEventListener("pointerup", (ev) => this.onPointerUp(ev));
       window.addEventListener("pointercancel", (ev) => this.onPointerUp(ev));
@@ -1232,5 +1231,6 @@ import * as THREE from "../vendor/three.module.js";
   }
 
   const app = new RayFrontier();
+  window.RayFrontierApp = app;
   app.boot();
 })();
