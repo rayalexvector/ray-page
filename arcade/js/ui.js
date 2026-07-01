@@ -4,6 +4,7 @@
   const UI = {};
   let audioCtx = null;
   let toastTimer = 0;
+  let iosSwitchHaptic = null;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -34,9 +35,58 @@
   }
 
   function vibrate(pattern) {
-    if (!settings().vibrate && pattern !== 0) return;
+    if (!settings().vibrate && pattern !== 0) return false;
     if (navigator.vibrate) {
-      try { navigator.vibrate(pattern === undefined ? 20 : pattern); } catch (err) { /* unsupported */ }
+      try { return navigator.vibrate(pattern === undefined ? 20 : pattern); } catch (err) { /* unsupported */ }
+    }
+    return false;
+  }
+
+  function isIOSWebKit() {
+    const ua = navigator.userAgent || "";
+    const platform = navigator.platform || "";
+    return /iP(hone|ad|od)/.test(ua) || (platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function ensureIOSSwitchHaptic() {
+    if (iosSwitchHaptic && document.body.contains(iosSwitchHaptic.input)) return iosSwitchHaptic;
+    if (!isIOSWebKit() || !document.body) return null;
+    const id = "ray-ios-haptic-" + Math.random().toString(36).slice(2);
+    const input = el("input");
+    input.type = "checkbox";
+    input.id = id;
+    input.tabIndex = -1;
+    input.setAttribute("switch", "");
+    input.setAttribute("aria-hidden", "true");
+    input.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "top:50%",
+      "width:44px",
+      "height:44px",
+      "opacity:.001",
+      "transform:translate(-50%,-50%)",
+      "pointer-events:none",
+      "z-index:2147483647"
+    ].join(";");
+    const label = el("label", "", " ");
+    label.htmlFor = id;
+    label.setAttribute("aria-hidden", "true");
+    label.style.cssText = input.style.cssText;
+    document.body.appendChild(input);
+    document.body.appendChild(label);
+    iosSwitchHaptic = { input, label };
+    return iosSwitchHaptic;
+  }
+
+  function switchHaptic() {
+    const pair = ensureIOSSwitchHaptic();
+    if (!pair) return false;
+    try {
+      pair.label.click();
+      return true;
+    } catch (err) {
+      return false;
     }
   }
 
@@ -92,7 +142,7 @@
       success: [9, 18, 9],
       warning: [6, 18, 6]
     };
-    vibrate(table[type] || table.light);
+    if (!vibrate(table[type] || table.light)) switchHaptic(type);
   }
 
   function beep(kind) {
