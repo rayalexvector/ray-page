@@ -315,7 +315,7 @@
     if (!('serviceWorker' in navigator)) return;
     const okOrigin = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!okOrigin) return;
-    navigator.serviceWorker.register('./sw-cloudsave-3.js').catch(() => {});
+    navigator.serviceWorker.register('./sw-cloudsave-3.js?v=heavy-1').catch(() => {});
   }
 
   function boot(){
