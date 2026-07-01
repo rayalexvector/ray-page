@@ -2,6 +2,8 @@
   "use strict";
 
   const NS = "rayArcade.";
+  let cloudClient = null;
+  let suppressCloudDirty = false;
 
   const defaults = {
     stats: {
@@ -23,6 +25,7 @@
       collection: {},
       history: []
     },
+    sessions: {},
     helpSeen: {},
     achievements: []
   };
@@ -64,6 +67,39 @@
     } catch (err) {
       console.warn("RayArcade storage save failed", bucket, err);
     }
+    markCloudDirty("bucket:" + bucket);
+  }
+
+  function markCloudDirty(reason) {
+    if (suppressCloudDirty || !cloudClient || typeof cloudClient.markDirty !== "function") return;
+    cloudClient.markDirty(reason || "save");
+  }
+
+  function setCloudClient(client) {
+    cloudClient = client || null;
+  }
+
+  function mergeProgress(localValue, remoteValue) {
+    if (window.RayCloudSave && typeof window.RayCloudSave.mergeProgress === "function") {
+      return window.RayCloudSave.mergeProgress(localValue, remoteValue);
+    }
+    if (remoteValue === undefined || remoteValue === null) return clone(localValue);
+    if (localValue === undefined || localValue === null) return clone(remoteValue);
+    if (typeof localValue === "number" && typeof remoteValue === "number") return Math.max(localValue, remoteValue);
+    if (Array.isArray(localValue) || Array.isArray(remoteValue)) {
+      const out = [];
+      [].concat(localValue || [], remoteValue || []).forEach((item) => {
+        if (!out.some((existing) => JSON.stringify(existing) === JSON.stringify(item))) out.push(clone(item));
+      });
+      return out;
+    }
+    if (typeof localValue === "object" && typeof remoteValue === "object") {
+      const out = {};
+      const keys = new Set(Object.keys(localValue).concat(Object.keys(remoteValue)));
+      keys.forEach((key) => { out[key] = mergeProgress(localValue[key], remoteValue[key]); });
+      return out;
+    }
+    return clone(remoteValue);
   }
 
   function todayKey() {
@@ -149,6 +185,30 @@
     save("cards", cards);
   }
 
+  function getSessions() {
+    return load("sessions");
+  }
+
+  function loadSession(gameId) {
+    const sessions = getSessions();
+    return sessions[gameId] || null;
+  }
+
+  function saveSession(gameId, session) {
+    const sessions = getSessions();
+    sessions[gameId] = Object.assign({}, session || {}, { updatedAt: Date.now() });
+    save("sessions", sessions);
+    return sessions[gameId];
+  }
+
+  function clearSession(gameId) {
+    const sessions = getSessions();
+    if (sessions[gameId]) {
+      delete sessions[gameId];
+      save("sessions", sessions);
+    }
+  }
+
   function getAchievements() {
     return load("achievements");
   }
@@ -165,6 +225,41 @@
 
   function resetAll() {
     Object.keys(defaults).forEach((bucket) => save(bucket, clone(defaults[bucket])));
+  }
+
+  function exportSave() {
+    return {
+      schema: 1,
+      appId: "arcade",
+      exportedAt: Date.now(),
+      buckets: {
+        stats: load("stats"),
+        settings: load("settings"),
+        cards: load("cards"),
+        sessions: load("sessions"),
+        helpSeen: load("helpSeen"),
+        achievements: load("achievements")
+      }
+    };
+  }
+
+  function importSave(payload) {
+    const source = payload && (payload.buckets || payload.payload || payload);
+    if (!source || typeof source !== "object") return exportSave();
+    suppressCloudDirty = true;
+    try {
+      Object.keys(defaults).forEach((bucket) => {
+        if (source[bucket] === undefined) return;
+        save(bucket, mergeProgress(load(bucket), source[bucket]));
+      });
+    } finally {
+      suppressCloudDirty = false;
+    }
+    return exportSave();
+  }
+
+  function flushCloudSave(options) {
+    return cloudClient && typeof cloudClient.flush === "function" ? cloudClient.flush(options || { force: true }) : Promise.resolve(false);
   }
 
   window.RayArcade = window.RayArcade || {};
@@ -185,8 +280,16 @@
     markHelpSeen,
     getCards,
     saveCards,
+    getSessions,
+    loadSession,
+    saveSession,
+    clearSession,
     getAchievements,
     addAchievement,
-    resetAll
+    resetAll,
+    exportSave,
+    importSave,
+    setCloudClient,
+    flushCloudSave
   };
 })();

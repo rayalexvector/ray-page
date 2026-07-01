@@ -51,6 +51,10 @@ p{line-height:1.55;color:var(--muted);margin:8px 0;}
 .ghost-btn{width:100%;margin-top:10px;}
 .danger-btn{width:100%;margin-top:14px;background:rgba(255,95,126,.15);border:1px solid rgba(255,95,126,.36);color:#ffc5d0;}
 .footer-note{position:absolute;left:20px;right:20px;bottom:calc(10px + var(--safe-bottom));text-align:center;font-size:12px;color:rgba(218,230,255,.58);}
+#saveStatusText{font-weight:850;color:rgba(247,251,255,.82);}
+#saveStatusText[data-state="synced"]{color:var(--green);}
+#saveStatusText[data-state="syncing"],#saveStatusText[data-state="queued"]{color:var(--cyan);}
+#saveStatusText[data-state="offline"],#saveStatusText[data-state="error"]{color:var(--gold);}
 .hud{position:absolute;left:0;right:0;z-index:12;display:flex;align-items:center;gap:8px;pointer-events:none;}
 .top-hud{top:0;padding:calc(8px + var(--safe-top)) 10px 8px;}
 .bottom-hud{bottom:0;padding:8px 12px calc(10px + var(--safe-bottom));justify-content:center;}

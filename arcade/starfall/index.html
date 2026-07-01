@@ -48,7 +48,7 @@
           <button id="homeHelpBtn" class="menu-btn" type="button">怎么玩</button>
         </div>
       </div>
-      <p class="footer-note">纯静态前端 · 本地存档 · 适合 iPhone 竖屏触屏游玩</p>
+      <p class="footer-note">纯静态前端 · <span id="saveStatusText" data-state="local">💾 本机存档</span> · 适合 iPhone 竖屏触屏游玩</p>
     </section>
 
     <section id="levelUpScreen" class="overlay hidden" aria-hidden="true">
@@ -84,7 +84,7 @@
         <button class="close-btn" id="closeShopBtn" type="button" aria-label="关闭">×</button>
         <div class="eyebrow">星港升级</div>
         <h2>永久强化</h2>
-        <p class="hint">用本地保存的星屑金币升级 Ray Cat。所有数据只存在你的浏览器里。</p>
+        <p class="hint">星屑金币会自动保存到本机；登录 Ray 账号后会在后台无感云同步。</p>
         <div id="walletText" class="wallet"></div>
         <div id="shopItems" class="shop-list"></div>
       </div>
@@ -136,6 +136,7 @@
   </div>
 
   <script src="js/storage.js"></script>
+  <script src="../js/cloud-save.js?v=cloudsave-1"></script>
   <script src="js/audio.js"></script>
   <script src="js/game.js"></script>
   <script src="js/app.js"></script>

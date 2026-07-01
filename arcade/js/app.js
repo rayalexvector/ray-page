@@ -136,6 +136,30 @@
   let currentMeta = null;
   let pauseModalOpen = false;
   let autoPaused = false;
+  let cloudSave = null;
+  let saveStatus = { state: "local", label: "💾 本机存档" };
+
+  function updateSaveStatus(status) {
+    saveStatus = Object.assign({}, saveStatus, status || {});
+    const node = app.querySelector("[data-save-status]");
+    if (node) {
+      node.textContent = saveStatus.label || "💾 本机存档";
+      node.dataset.state = saveStatus.state || "local";
+    }
+  }
+
+  function initCloudSave() {
+    if (cloudSave || !window.RayCloudSave || !Storage.exportSave || !Storage.importSave) return;
+    cloudSave = window.RayCloudSave.createClient({
+      appId: "arcade",
+      exportSave: Storage.exportSave,
+      importSave: Storage.importSave,
+      onStatus: updateSaveStatus,
+      debounceMs: 1600
+    });
+    Storage.setCloudClient(cloudSave);
+    cloudSave.start();
+  }
 
   function statText(game) {
     const stats = Storage.getStats();
@@ -197,7 +221,7 @@
           <div class="lobby-stats">
             <span class="stat-pill">🎮 ${stats.totalPlays || 0} 局</span>
             <span class="stat-pill">🏆 ${achievements.length}/${Object.keys(ACHIEVEMENTS).length} 成就</span>
-            <span class="stat-pill">💾 本地存档</span>
+            <span class="stat-pill save-pill" data-save-status data-state="${UI.escapeHtml(saveStatus.state || "local")}">${UI.escapeHtml(saveStatus.label || "💾 本机存档")}</span>
           </div>
         </header>
         <div class="lobby-list">
@@ -366,5 +390,6 @@
     lastTouchEnd = now;
   }, { passive: false });
 
+  initCloudSave();
   renderLobby();
 })();

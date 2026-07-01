@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ray-cat-starfall-v1';
+const CACHE_NAME = 'ray-cat-starfall-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './assets/icon.svg',
   './css/style.css',
   './js/storage.js',
+  '../js/cloud-save.js',
   './js/audio.js',
   './js/game.js',
   './js/app.js',

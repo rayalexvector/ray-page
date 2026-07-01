@@ -2,6 +2,8 @@
   'use strict';
   const NS = window.RayStarfall = window.RayStarfall || {};
   const KEY = 'rayStarfall.save.v1';
+  let cloudClient = null;
+  let suppressCloudDirty = false;
   const defaultSave = {
     version: 1,
     createdAt: 0,
@@ -66,6 +68,29 @@
     save.updatedAt = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(save)); }
     catch(e){ /* Safari private mode may reject localStorage. Game still works for this session. */ }
+    markCloudDirty('starfall:persist');
+  }
+
+  function markCloudDirty(reason){
+    if (suppressCloudDirty || !cloudClient || typeof cloudClient.markDirty !== 'function') return;
+    cloudClient.markDirty(reason || 'save');
+  }
+
+  function setCloudClient(client){ cloudClient = client || null; }
+
+  function mergeProgress(localValue, remoteValue){
+    if (window.RayCloudSave && typeof window.RayCloudSave.mergeProgress === 'function') return window.RayCloudSave.mergeProgress(localValue, remoteValue);
+    if (remoteValue === undefined || remoteValue === null) return clone(localValue);
+    if (localValue === undefined || localValue === null) return clone(remoteValue);
+    if (typeof localValue === 'number' && typeof remoteValue === 'number') return Math.max(localValue, remoteValue);
+    if (Array.isArray(localValue) || Array.isArray(remoteValue)) return [].concat(localValue || [], remoteValue || []);
+    if (typeof localValue === 'object' && typeof remoteValue === 'object'){
+      const out = {};
+      const keys = new Set(Object.keys(localValue).concat(Object.keys(remoteValue)));
+      keys.forEach(key => { out[key] = mergeProgress(localValue[key], remoteValue[key]); });
+      return out;
+    }
+    return clone(remoteValue);
   }
 
   function get(){ return save; }
@@ -141,5 +166,33 @@
     persist();
   }
 
-  NS.Store = { get, getSettings, setSettings, setHelpSeen, addCoins, spendCoins, buyUpgrade, priceForUpgrade, markAchievement, hasAchievement, recordRun, reset, KEY };
+  function exportSave(){
+    return {
+      schema: 1,
+      appId: 'starfall',
+      exportedAt: Date.now(),
+      save: clone(save)
+    };
+  }
+
+  function importSave(payload){
+    const incoming = payload && (payload.save || payload.payload || payload);
+    if (!incoming || typeof incoming !== 'object') return exportSave();
+    suppressCloudDirty = true;
+    try {
+      save = mergeProgress(save, mergeDefaults(clone(incoming), defaultSave));
+      save.version = defaultSave.version;
+      save.updatedAt = Date.now();
+      try { localStorage.setItem(KEY, JSON.stringify(save)); } catch(e){ /* noop */ }
+    } finally {
+      suppressCloudDirty = false;
+    }
+    return exportSave();
+  }
+
+  function flushCloudSave(options){
+    return cloudClient && typeof cloudClient.flush === 'function' ? cloudClient.flush(options || { force:true }) : Promise.resolve(false);
+  }
+
+  NS.Store = { get, getSettings, setSettings, setHelpSeen, addCoins, spendCoins, buyUpgrade, priceForUpgrade, markAchievement, hasAchievement, recordRun, reset, exportSave, importSave, setCloudClient, flushCloudSave, KEY };
 })();

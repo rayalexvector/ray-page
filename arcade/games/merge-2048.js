@@ -59,11 +59,18 @@
     }
 
     start() {
+      const saved = Storage.loadSession("merge2048");
+      if (saved && saved.active && Array.isArray(saved.board) && saved.board.length === 4) {
+        this.restoreProgress(saved);
+        UI.toast("已恢复上次合成进度");
+        return;
+      }
       Storage.notePlay("merge2048");
       this.restart();
     }
 
     restart() {
+      Storage.clearSession("merge2048");
       this.clearResult();
       this.score = 0;
       this.bestLevel = 1;
@@ -78,6 +85,28 @@
     pause() { this.paused = true; }
     resume() { this.paused = false; }
     destroy() { this.host.innerHTML = ""; }
+
+    restoreProgress(saved) {
+      this.clearResult();
+      this.board = saved.board.map((row) => row.slice(0, 4).map((value) => Number(value) || 0));
+      this.score = Number(saved.score || 0);
+      this.bestLevel = Number(saved.bestLevel || Math.max(1, ...this.board.flat())) || 1;
+      this.celebrated = Object.assign({}, saved.celebrated || {});
+      this.started = true;
+      this.paused = false;
+      this.render();
+    }
+
+    saveProgress() {
+      if (!this.started) return;
+      Storage.saveSession("merge2048", {
+        active: true,
+        board: cloneBoard(this.board),
+        score: this.score,
+        bestLevel: this.bestLevel,
+        celebrated: this.celebrated
+      });
+    }
 
     clearResult() {
       const node = this.host.querySelector(".result-panel");
@@ -166,6 +195,7 @@
       UI.vibrate(10);
       this.checkMilestones();
       if (!this.canMove()) this.gameOver();
+      else this.saveProgress();
     }
 
     canMove() {
@@ -244,6 +274,7 @@
       const unlocked = [];
       for (let i = 1; i <= top; i += 1) unlocked.push(i);
       Storage.updateBest("merge2048", { bestScore: this.score, bestLevel: top, unlocked });
+      Storage.clearSession("merge2048");
       if (top >= 8) UI.achievement("merge-catgod", "终极猫神代理人");
       UI.beep("end");
       UI.vibrate([28, 40, 20]);

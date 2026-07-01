@@ -8,6 +8,30 @@
   const audio = new NS.AudioEngine();
   let game;
   let helpContext = { startAfter:false, resumeAfter:false };
+  let cloudSave = null;
+  let saveStatus = { state:'local', label:'💾 本机存档' };
+
+  function updateSaveStatus(status){
+    saveStatus = Object.assign({}, saveStatus, status || {});
+    const node = $('#saveStatusText');
+    if (node){
+      node.textContent = saveStatus.label || '💾 本机存档';
+      node.dataset.state = saveStatus.state || 'local';
+    }
+  }
+
+  function initCloudSave(){
+    if (cloudSave || !window.RayCloudSave || !NS.Store.exportSave || !NS.Store.importSave) return;
+    cloudSave = window.RayCloudSave.createClient({
+      appId: 'starfall',
+      exportSave: NS.Store.exportSave,
+      importSave: NS.Store.importSave,
+      onStatus: updateSaveStatus,
+      debounceMs: 1600
+    });
+    NS.Store.setCloudClient(cloudSave);
+    cloudSave.start();
+  }
 
   const screens = {
     home: $('#homeScreen'),
@@ -298,6 +322,7 @@
     registerServiceWorker();
     syncSettings();
     bindUI();
+    initCloudSave();
     game = new NS.Game(canvas, {
       updateHUD: updateHud,
       onLevelUp: renderLevelUp,
