@@ -14,6 +14,7 @@
       neonBalls: { bestRound: 0, bestScore: 0, plays: 0 },
       reaction: { bestScore: 0, bestCombo: 0, plays: 0 },
       dailyCard: { totalDraws: 0, rarest: "", plays: 0 },
+      frontier: { bestScore: 0, bestWave: 0, bestLevel: 0, bestChips: 0, plays: 0 },
       totalPlays: 0
     },
     settings: {

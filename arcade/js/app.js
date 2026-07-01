@@ -23,7 +23,10 @@
     "cards-six": "收集 6 张卡",
     "cards-full": "Ray Cat 全图鉴",
     "cards-agent-set": "Ray Agent 套装",
-    "cards-cat-god": "隐藏猫神现身"
+    "cards-cat-god": "隐藏猫神现身",
+    "frontier-wave5": "Ray Frontier 击退 5 波",
+    "frontier-level8": "边境武器同步 Lv.8",
+    "frontier-5000": "边境积分 5000"
   };
 
   const GAMES = [
@@ -133,6 +136,21 @@
       }
     },
     {
+      id: "frontier",
+      title: "Ray Frontier",
+      icon: "🛰️",
+      subtitle: "iPhone 15+ 3D 动作 Roguelite，摇杆移动、自动锁定、NOVA 清屏。",
+      externalUrl: "frontier/",
+      help: {
+        title: "Ray Frontier 怎么玩",
+        lines: [
+          "这是独立 3D 动作游戏，会打开单独页面。",
+          "左侧虚拟摇杆移动，右侧按钮闪避、爆发和释放 NOVA。",
+          "击破敌潮收集芯片，局内升级武器，挑战 Boss 波次。"
+        ]
+      }
+    },
+    {
       id: "starfall",
       title: "Ray Cat 星港突围",
       icon: "🚀",
@@ -212,6 +230,10 @@
     if (game.id === "starfall") {
       return "独立动作 Roguelite · 本地存档";
     }
+    if (game.id === "frontier") {
+      const s = stats.frontier || {};
+      return `最高 ${s.bestScore || 0} 分 · 第 ${s.bestWave || 0} 波 · Lv.${s.bestLevel || 0}`;
+    }
     return "准备开始";
   }
 
@@ -238,7 +260,7 @@
             </div>
           </div>
           <h1 class="hero-title"><span class="neon-text">Ray Toilet Arcade</span></h1>
-          <p class="hero-subtitle">8 个适合摸鱼时玩的手机小游戏。排队、休息、碎片时间，Ray Cat 陪你从轻量挑战一路突围到星港弹幕。</p>
+          <p class="hero-subtitle">9 个适合摸鱼时玩的手机游戏。排队、休息、碎片时间，Ray Cat 陪你从轻量挑战一路突围到 3D 边境战场。</p>
           <div class="lobby-stats">
             <span class="stat-pill">🎮 ${stats.totalPlays || 0} 局</span>
             <span class="stat-pill">🏆 ${achievements.length}/${Object.keys(ACHIEVEMENTS).length} 成就</span>

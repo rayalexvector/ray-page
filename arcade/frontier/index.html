@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#060713" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Ray Frontier / Ray 边境突围</title>
+  <link rel="manifest" href="../manifest.webmanifest" />
+  <link rel="icon" href="../assets/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="../../apple-touch-icon.png" />
+  <link rel="stylesheet" href="css/frontier.css?v=frontier-1" />
+</head>
+<body>
+  <main id="frontier" class="frontier-shell">
+    <canvas id="frontierCanvas" class="frontier-canvas" aria-label="Ray Frontier 3D 游戏画面"></canvas>
+
+    <section class="frontier-hud" aria-live="polite">
+      <header class="frontier-topbar">
+        <a class="hud-icon hud-back" href="../" aria-label="返回游戏厅">‹</a>
+        <div class="hud-title">
+          <h1>Ray Frontier</h1>
+          <p data-save-status>本机存档</p>
+        </div>
+        <button class="hud-icon" type="button" data-quality aria-label="画质">Q</button>
+        <button class="hud-icon" type="button" data-pause aria-label="暂停">Ⅱ</button>
+      </header>
+
+      <div class="hud-meters">
+        <div class="meter-card">
+          <span>护盾</span>
+          <strong data-hp>100</strong>
+          <i><b data-hp-bar></b></i>
+        </div>
+        <div class="meter-card">
+          <span>等级</span>
+          <strong data-level>1</strong>
+          <i><b data-xp-bar></b></i>
+        </div>
+        <div class="meter-card">
+          <span>波次</span>
+          <strong data-wave>1</strong>
+          <i><b data-nova-bar></b></i>
+        </div>
+      </div>
+
+      <div class="hud-score">
+        <span data-score>0 分</span>
+        <span data-weapon>离子枪 Lv.1</span>
+      </div>
+    </section>
+
+    <section class="touch-layer" data-touch-layer aria-hidden="true">
+      <div class="stick" data-stick>
+        <div class="stick-knob" data-stick-knob></div>
+      </div>
+      <div class="action-pad">
+        <button class="action-btn action-small" type="button" data-dash aria-label="闪避">⟡</button>
+        <button class="action-btn action-main" type="button" data-nova aria-label="NOVA">✦</button>
+        <button class="action-btn action-small" type="button" data-burst aria-label="爆发">↯</button>
+      </div>
+    </section>
+
+    <section class="frontier-menu is-open" data-menu>
+      <div class="menu-panel">
+        <p class="kicker">iPhone 15+ 3D Roguelite</p>
+        <h2>Ray Frontier</h2>
+        <p class="menu-copy">单指移动，自动锁定射击，闪避穿过弹幕，收集芯片升级武器，在边境星港撑过越来越重的敌潮。</p>
+        <div class="menu-stats" data-menu-stats></div>
+        <button class="primary-command" type="button" data-start>进入边境</button>
+      </div>
+    </section>
+
+    <section class="upgrade-sheet" data-upgrades hidden>
+      <div class="upgrade-panel">
+        <p class="kicker">武器同步完成</p>
+        <h2>选择一项升级</h2>
+        <div class="upgrade-grid" data-upgrade-grid></div>
+      </div>
+    </section>
+
+    <section class="frontier-menu" data-result hidden>
+      <div class="menu-panel result-panel">
+        <p class="kicker">边境记录</p>
+        <h2 data-result-title>突围结束</h2>
+        <p class="menu-copy" data-result-copy></p>
+        <div class="menu-stats" data-result-stats></div>
+        <button class="primary-command" type="button" data-restart>再突围一次</button>
+        <a class="secondary-command" href="../">返回游戏厅</a>
+      </div>
+    </section>
+
+    <div class="loading-mask" data-loading>
+      <div class="loading-mark"></div>
+      <p>正在装配 Ray Frontier</p>
+    </div>
+  </main>
+
+  <script src="../js/storage.js?v=frontier-1"></script>
+  <script src="../js/cloud-save.js?v=cloudsave-2"></script>
+  <script src="../js/ui.js?v=rayhop-4"></script>
+  <script type="module" src="js/frontier.js?v=frontier-1"></script>
+</body>
+</html>
