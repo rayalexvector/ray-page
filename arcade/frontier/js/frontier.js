@@ -174,9 +174,9 @@ import * as THREE from "../vendor/three.module.js";
     loadQuality() {
       const saved = localStorage.getItem("rayFrontier.quality") || "high";
       const modes = {
-        low: { id: "low", label: "低", pixel: 1.1, particles: .55, maxEnemies: 28, shadows: false },
-        mid: { id: "mid", label: "中", pixel: 1.55, particles: .8, maxEnemies: 38, shadows: false },
-        high: { id: "high", label: "高", pixel: 2, particles: 1, maxEnemies: 48, shadows: false }
+        low: { id: "low", label: "低", pixel: 1.2, particles: .65, maxEnemies: 32, shadows: false },
+        mid: { id: "mid", label: "中", pixel: 1.7, particles: .9, maxEnemies: 44, shadows: false },
+        high: { id: "high", label: "高", pixel: 2.45, particles: 1.25, maxEnemies: 60, shadows: false }
       };
       return modes[saved] || modes.high;
     }
@@ -246,7 +246,7 @@ import * as THREE from "../vendor/three.module.js";
       this.camera.position.set(0, 17, 19);
       this.renderer = new THREE.WebGLRenderer({
         canvas: this.canvas,
-        antialias: false,
+        antialias: true,
         alpha: false,
         powerPreference: "high-performance",
         stencil: false,
@@ -274,11 +274,15 @@ import * as THREE from "../vendor/three.module.js";
         player: new THREE.MeshStandardMaterial({ color: 0xdffbff, emissive: 0x1daeff, emissiveIntensity: .55, metalness: .35, roughness: .24 }),
         playerAccent: new THREE.MeshStandardMaterial({ color: 0xff9be4, emissive: 0xff5fb7, emissiveIntensity: .52, metalness: .2, roughness: .28 }),
         weapon: new THREE.MeshStandardMaterial({ color: 0x65ffb4, emissive: 0x32ff9d, emissiveIntensity: .95, metalness: .4, roughness: .2 }),
-        cyan: new THREE.MeshBasicMaterial({ color: 0x35e5ff, transparent: true, opacity: .86, blending: THREE.AdditiveBlending }),
-        green: new THREE.MeshBasicMaterial({ color: 0x65ffb4, transparent: true, opacity: .9, blending: THREE.AdditiveBlending }),
-        pink: new THREE.MeshBasicMaterial({ color: 0xff5fb7, transparent: true, opacity: .88, blending: THREE.AdditiveBlending }),
-        amber: new THREE.MeshBasicMaterial({ color: 0xffd86b, transparent: true, opacity: .9, blending: THREE.AdditiveBlending }),
-        red: new THREE.MeshBasicMaterial({ color: 0xff637d, transparent: true, opacity: .92, blending: THREE.AdditiveBlending }),
+        cyan: new THREE.MeshBasicMaterial({ color: 0x35e5ff, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        green: new THREE.MeshBasicMaterial({ color: 0x65ffb4, transparent: true, opacity: .92, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        pink: new THREE.MeshBasicMaterial({ color: 0xff5fb7, transparent: true, opacity: .92, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        amber: new THREE.MeshBasicMaterial({ color: 0xffd86b, transparent: true, opacity: .94, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        red: new THREE.MeshBasicMaterial({ color: 0xff345f, transparent: true, opacity: .96, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        purple: new THREE.MeshBasicMaterial({ color: 0xb34cff, transparent: true, opacity: .92, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        pickupXp: new THREE.MeshBasicMaterial({ color: 0xffd86b, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        pickupWeapon: new THREE.MeshBasicMaterial({ color: 0x35e5ff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+        pickupHeal: new THREE.MeshBasicMaterial({ color: 0x65ffb4, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
         enemyDrone: new THREE.MeshStandardMaterial({ color: 0xff4f78, emissive: 0x8c1235, emissiveIntensity: .62, metalness: .42, roughness: .27 }),
         enemyCaster: new THREE.MeshStandardMaterial({ color: 0x9b5cff, emissive: 0x4d1db5, emissiveIntensity: .74, metalness: .35, roughness: .25 }),
         enemyTank: new THREE.MeshStandardMaterial({ color: 0xd640ff, emissive: 0x5c126e, emissiveIntensity: .55, metalness: .45, roughness: .3 }),
@@ -293,6 +297,10 @@ import * as THREE from "../vendor/three.module.js";
         sphere: new THREE.SphereGeometry(1, 18, 14),
         smallSphere: new THREE.SphereGeometry(.32, 12, 10),
         bullet: new THREE.SphereGeometry(.18, 10, 8),
+        bulletGlow: new THREE.SphereGeometry(.42, 14, 10),
+        pickupCore: new THREE.OctahedronGeometry(.48, 1),
+        pickupGlow: new THREE.SphereGeometry(.78, 16, 12),
+        beam: new THREE.CylinderGeometry(.035, .035, 2.8, 8),
         box: new THREE.BoxGeometry(1, 1, 1),
         cone: new THREE.ConeGeometry(1, 2, 6),
         cylinder: new THREE.CylinderGeometry(.55, .55, 1, 12),
@@ -361,6 +369,7 @@ import * as THREE from "../vendor/three.module.js";
       ring.rotation.x = Math.PI / 2;
       ring.position.y = .08;
       this.scene.add(ring);
+      this.createEnergyRails();
       this.createSkyfield();
       this.createStructures();
       this.nodes.player = this.createPlayerMesh();
@@ -394,6 +403,34 @@ import * as THREE from "../vendor/three.module.js";
       });
       this.nodes.arenaLines = new THREE.LineSegments(geo, mat);
       this.scene.add(this.nodes.arenaLines);
+    }
+
+    createEnergyRails() {
+      const group = new THREE.Group();
+      const rails = [
+        { r: 10, c: this.materials.cyan, o: .24 },
+        { r: 18, c: this.materials.green, o: .18 },
+        { r: 29, c: this.materials.pink, o: .2 },
+        { r: 38, c: this.materials.cyan, o: .18 }
+      ];
+      for (const rail of rails) {
+        const mesh = new THREE.Mesh(new THREE.TorusGeometry(rail.r, .035, 6, 144), this.effectMaterial(rail.c, rail.o));
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.y = .12;
+        mesh.renderOrder = 6;
+        group.add(mesh);
+      }
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, .08, 54), new THREE.MeshStandardMaterial({
+        color: 0x091a31,
+        emissive: 0x052844,
+        emissiveIntensity: .62,
+        metalness: .45,
+        roughness: .42
+      }));
+      core.position.y = .02;
+      group.add(core);
+      this.nodes.energyRails = group;
+      this.scene.add(group);
     }
 
     createSkyfield() {
@@ -468,6 +505,63 @@ import * as THREE from "../vendor/three.module.js";
       const light = new THREE.PointLight(0x35e5ff, 7, 8);
       light.position.set(0, 1.5, 0);
       group.add(light);
+      return group;
+    }
+
+    effectMaterial(base, opacity) {
+      const mat = base.clone();
+      mat.transparent = true;
+      mat.opacity = opacity === undefined ? (base.opacity === undefined ? 1 : base.opacity) : opacity;
+      mat.depthWrite = false;
+      mat.toneMapped = false;
+      return mat;
+    }
+
+    createProjectileMesh(kind, dir, crit) {
+      const group = new THREE.Group();
+      const hostile = kind === "enemy";
+      const coreMat = hostile ? this.materials.red : crit ? this.materials.amber : this.materials.cyan;
+      const glowMat = this.effectMaterial(hostile ? this.materials.purple : crit ? this.materials.amber : this.materials.cyan, hostile ? .34 : .24);
+      const trailMat = this.effectMaterial(hostile ? this.materials.red : this.materials.cyan, hostile ? .52 : .36);
+      const core = new THREE.Mesh(this.geometries.bullet, coreMat);
+      core.scale.setScalar(hostile ? 2.25 : crit ? 1.9 : 1.55);
+      const glow = new THREE.Mesh(this.geometries.bulletGlow, glowMat);
+      glow.scale.setScalar(hostile ? 1.55 : 1.25);
+      const trail = new THREE.Mesh(this.geometries.box, trailMat);
+      trail.scale.set(hostile ? .22 : .14, hostile ? .22 : .14, hostile ? 2.35 : 1.45);
+      trail.position.z = hostile ? -.9 : -.62;
+      const ring = new THREE.Mesh(this.geometries.torus, this.effectMaterial(hostile ? this.materials.purple : this.materials.cyan, hostile ? .62 : .42));
+      ring.scale.setScalar(hostile ? .52 : .34);
+      ring.rotation.x = Math.PI / 2;
+      group.add(trail, glow, core, ring);
+      group.position.y = hostile ? 1.22 : 1.05;
+      group.rotation.y = Math.atan2(dir.x, dir.z);
+      group.renderOrder = hostile ? 30 : 24;
+      group.userData = { core, glow, trail, ring, hostile };
+      return group;
+    }
+
+    createPickupMesh(type) {
+      const mat = type === "weapon" ? this.materials.pickupWeapon : type === "heal" ? this.materials.pickupHeal : this.materials.pickupXp;
+      const group = new THREE.Group();
+      const core = new THREE.Mesh(type === "heal" ? this.geometries.sphere : this.geometries.pickupCore, mat);
+      core.scale.setScalar(type === "xp" ? .72 : .92);
+      const glow = new THREE.Mesh(this.geometries.pickupGlow, this.effectMaterial(mat, type === "xp" ? .18 : .24));
+      glow.scale.setScalar(type === "xp" ? .92 : 1.22);
+      const ring = new THREE.Mesh(this.geometries.torus, this.effectMaterial(mat, .72));
+      ring.scale.setScalar(type === "xp" ? .58 : .78);
+      ring.rotation.x = Math.PI / 2;
+      const beam = new THREE.Mesh(this.geometries.beam, this.effectMaterial(mat, type === "xp" ? .28 : .42));
+      beam.position.y = 1.15;
+      beam.scale.set(type === "xp" ? .65 : 1, type === "xp" ? .7 : 1.1, type === "xp" ? .65 : 1);
+      const crown = new THREE.Mesh(this.geometries.ring, this.effectMaterial(mat, type === "xp" ? .38 : .54));
+      crown.position.y = type === "xp" ? 1.3 : 1.72;
+      crown.scale.setScalar(type === "xp" ? .44 : .62);
+      crown.rotation.x = -Math.PI / 2;
+      group.add(beam, glow, core, ring, crown);
+      group.position.y = type === "xp" ? .74 : .92;
+      group.renderOrder = 28;
+      group.userData = { core, glow, ring, beam, crown, pickupType: type };
       return group;
     }
 
@@ -609,6 +703,8 @@ import * as THREE from "../vendor/three.module.js";
       this.updateCamera(dt);
       this.updateHud();
       if (this.nodes.stars) this.nodes.stars.rotation.y += dt * .018;
+      if (this.nodes.arenaLines) this.nodes.arenaLines.rotation.y += dt * .012;
+      if (this.nodes.energyRails) this.nodes.energyRails.rotation.y -= dt * .01;
     }
 
     updatePlayer(dt) {
@@ -773,13 +869,13 @@ import * as THREE from "../vendor/three.module.js";
     }
 
     spawnEnemyBullet(from, dir, speed, damage) {
-      const mesh = new THREE.Mesh(this.geometries.bullet, this.materials.pink);
-      mesh.scale.setScalar(1.35);
-      mesh.position.set(from.x, .78, from.z);
+      const aim = dir.clone().normalize();
+      const mesh = this.createProjectileMesh("enemy", aim, false);
+      mesh.position.set(from.x, mesh.position.y, from.z);
       this.scene.add(mesh);
       this.enemyBullets.push({
         mesh,
-        vel: dir.clone().normalize().multiplyScalar(speed),
+        vel: aim.multiplyScalar(speed),
         damage,
         life: 4
       });
@@ -811,9 +907,8 @@ import * as THREE from "../vendor/three.module.js";
         const offset = (i - (count - 1) / 2) * spread;
         const dir = base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), offset);
         const crit = Math.random() < p.crit;
-        const mesh = new THREE.Mesh(this.geometries.bullet, crit ? this.materials.amber : this.materials.cyan);
-        mesh.scale.setScalar(crit ? 1.7 : 1.22);
-        mesh.position.set(p.pos.x + dir.x * .7, 1.05, p.pos.z + dir.z * .7);
+        const mesh = this.createProjectileMesh("player", dir, crit);
+        mesh.position.set(p.pos.x + dir.x * .7, mesh.position.y, p.pos.z + dir.z * .7);
         this.scene.add(mesh);
         this.bullets.push({
           mesh,
@@ -831,7 +926,11 @@ import * as THREE from "../vendor/three.module.js";
         const b = this.bullets[i];
         b.life -= dt;
         b.mesh.position.addScaledVector(b.vel, dt);
-        b.mesh.rotation.y += dt * 9;
+        if (b.mesh.userData.ring) b.mesh.userData.ring.rotation.z += dt * 10;
+        if (b.mesh.userData.glow) {
+          const s = 1 + Math.sin(this.time * 20 + i) * .12;
+          b.mesh.userData.glow.scale.setScalar(b.crit ? 1.42 * s : 1.18 * s);
+        }
         let remove = b.life <= 0;
         for (let j = this.enemies.length - 1; j >= 0 && !remove; j -= 1) {
           const e = this.enemies[j];
@@ -848,7 +947,11 @@ import * as THREE from "../vendor/three.module.js";
         const b = this.enemyBullets[i];
         b.life -= dt;
         b.mesh.position.addScaledVector(b.vel, dt);
-        b.mesh.scale.multiplyScalar(1 + dt * .08);
+        if (b.mesh.userData.ring) b.mesh.userData.ring.rotation.z -= dt * 12;
+        if (b.mesh.userData.glow) {
+          const s = 1.52 + Math.sin(this.time * 18 + i) * .18;
+          b.mesh.userData.glow.scale.setScalar(s);
+        }
         let remove = b.life <= 0;
         if (!remove && dist2(b.mesh.position, this.player.pos) < 1.15) {
           this.damagePlayer(b.damage);
@@ -902,11 +1005,8 @@ import * as THREE from "../vendor/three.module.js";
     }
 
     spawnPickup(type, pos, value) {
-      const mat = type === "weapon" ? this.materials.cyan : type === "heal" ? this.materials.green : this.materials.amber;
-      const geo = type === "weapon" ? this.geometries.torus : type === "heal" ? this.geometries.sphere : this.geometries.box;
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(pos.x + rand(-1.1, 1.1), .65, pos.z + rand(-1.1, 1.1));
-      mesh.scale.setScalar(type === "xp" ? .34 : .55);
+      const mesh = this.createPickupMesh(type);
+      mesh.position.set(pos.x + rand(-1.35, 1.35), mesh.position.y, pos.z + rand(-1.35, 1.35));
       this.scene.add(mesh);
       this.pickups.push({ type, mesh, value, life: 18, bob: rand(0, TAU) });
     }
@@ -917,8 +1017,14 @@ import * as THREE from "../vendor/three.module.js";
         const item = this.pickups[i];
         item.life -= dt;
         item.bob += dt * 5;
-        item.mesh.rotation.y += dt * 2.8;
-        item.mesh.position.y = .65 + Math.sin(item.bob) * .14;
+        item.mesh.rotation.y += dt * (item.type === "xp" ? 3.5 : 4.8);
+        item.mesh.position.y = (item.type === "xp" ? .82 : 1.02) + Math.sin(item.bob) * .18;
+        if (item.mesh.userData.ring) item.mesh.userData.ring.rotation.z += dt * 4.2;
+        if (item.mesh.userData.crown) item.mesh.userData.crown.rotation.z -= dt * 3.4;
+        if (item.mesh.userData.glow) {
+          const s = (item.type === "xp" ? .92 : 1.24) + Math.sin(item.bob * 1.5) * .12;
+          item.mesh.userData.glow.scale.setScalar(s);
+        }
         const dSq = dist2(item.mesh.position, p.pos);
         const range = p.pickupRange;
         if (dSq < range * range) {
@@ -1087,7 +1193,7 @@ import * as THREE from "../vendor/three.module.js";
     addSpark(pos, mat, count) {
       const n = Math.floor(count * this.quality.particles);
       for (let i = 0; i < n; i += 1) {
-        const mesh = new THREE.Mesh(this.geometries.smallSphere, mat);
+        const mesh = new THREE.Mesh(this.geometries.smallSphere, this.effectMaterial(mat, mat.opacity === undefined ? .9 : mat.opacity));
         mesh.position.set(pos.x, rand(.65, 1.4), pos.z);
         const a = rand(0, TAU);
         const speed = rand(4, 13);
@@ -1108,7 +1214,7 @@ import * as THREE from "../vendor/three.module.js";
     }
 
     addRing(pos, mat, scale) {
-      const mesh = new THREE.Mesh(this.geometries.ring, mat);
+      const mesh = new THREE.Mesh(this.geometries.ring, this.effectMaterial(mat, mat.opacity === undefined ? .78 : mat.opacity));
       mesh.rotation.x = -Math.PI / 2;
       mesh.position.set(pos.x, .09, pos.z);
       mesh.scale.setScalar(.2);
