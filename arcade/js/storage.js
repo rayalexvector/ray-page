@@ -8,6 +8,7 @@
   const defaults = {
     stats: {
       catJump: { bestHeight: 0, bestScore: 0, plays: 0 },
+      rayHop: { bestScore: 0, bestCombo: 0, plays: 0 },
       merge2048: { bestScore: 0, bestLevel: 0, unlocked: [1], plays: 0 },
       dungeon: { bestFloor: 0, bestGold: 0, titles: [], plays: 0 },
       neonBalls: { bestRound: 0, bestScore: 0, plays: 0 },

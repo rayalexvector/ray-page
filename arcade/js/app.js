@@ -10,6 +10,8 @@
   const ACHIEVEMENTS = {
     "catjump-100m": "Ray Cat 跳过 100m",
     "catjump-500": "小鱼干富翁",
+    "rayhop-60": "Ray Hop 破 60 分",
+    "rayhop-perfect5": "连续中心 5 连",
     "merge-agent": "合成 Ray Agent",
     "merge-catgod": "终极猫神代理人",
     "dungeon-15": "摸到地牢 15 层",
@@ -37,6 +39,21 @@
           "按住屏幕左右拖动，控制 Ray Cat 落到平台上。",
           "越跳越高，吃小鱼干加分；弹簧平台会把你送更高。",
           "掉出屏幕下方就结束，失败后可马上重开。"
+        ]
+      }
+    },
+    {
+      id: "rayHop",
+      title: "Ray Hop",
+      icon: "🧊",
+      subtitle: "长按蓄力，松手跳到下一个发光星台。",
+      cls: window.RayGames.RayHop,
+      help: {
+        title: "Ray Hop 星台跳怎么玩",
+        lines: [
+          "按住屏幕蓄力，松手后 Ray Cat 会沿虚线跳向下一个星台。",
+          "蓄力越久跳得越远；落在星台中心会连续加分。",
+          "鱼、MiMo、窄台有额外分，跳空就结束。"
         ]
       }
     },
@@ -167,6 +184,10 @@
       const s = stats.catJump;
       return `最高 ${s.bestHeight || 0}m · ${s.bestScore || 0} 分`;
     }
+    if (game.id === "rayHop") {
+      const s = stats.rayHop;
+      return `最高 ${s.bestScore || 0} 分 · 中心 ${s.bestCombo || 0} 连`;
+    }
     if (game.id === "merge2048") {
       const s = stats.merge2048;
       return `最高 ${s.bestScore || 0} 分 · ${MERGE_NAMES[s.bestLevel || 1] || "小鱼干"}`;
@@ -217,7 +238,7 @@
             </div>
           </div>
           <h1 class="hero-title"><span class="neon-text">Ray Toilet Arcade</span></h1>
-          <p class="hero-subtitle">7 个适合摸鱼时玩的手机小游戏。排队、休息、碎片时间，Ray Cat 陪你从轻量挑战一路突围到星港弹幕。</p>
+          <p class="hero-subtitle">8 个适合摸鱼时玩的手机小游戏。排队、休息、碎片时间，Ray Cat 陪你从轻量挑战一路突围到星港弹幕。</p>
           <div class="lobby-stats">
             <span class="stat-pill">🎮 ${stats.totalPlays || 0} 局</span>
             <span class="stat-pill">🏆 ${achievements.length}/${Object.keys(ACHIEVEMENTS).length} 成就</span>
