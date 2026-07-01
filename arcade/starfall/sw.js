@@ -1,15 +1,15 @@
-const CACHE_NAME = 'ray-cat-starfall-v2';
+const CACHE_NAME = 'ray-cat-starfall-v3';
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './assets/icon.svg',
-  './css/style.css',
-  './js/storage.js',
-  '../js/cloud-save.js',
+  './css/style.css?v=cloudsave-2',
+  './js/storage.js?v=cloudsave-2',
+  '../js/cloud-save.js?v=cloudsave-2',
   './js/audio.js',
   './js/game.js',
-  './js/app.js',
+  './js/app.js?v=cloudsave-2',
   './README.md',
   './DEPLOY_FOR_HERMES.md'
 ];
