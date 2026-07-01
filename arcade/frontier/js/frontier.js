@@ -242,8 +242,8 @@ import * as THREE from "../vendor/three.module.js";
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color(0x050611);
       this.scene.fog = new THREE.FogExp2(0x050611, .026);
-      this.camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, .1, 180);
-      this.camera.position.set(0, 17, 19);
+      this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, .1, 180);
+      this.camera.position.set(0, 19.4, 22.4);
       this.renderer = new THREE.WebGLRenderer({
         canvas: this.canvas,
         antialias: true,
@@ -654,8 +654,8 @@ import * as THREE from "../vendor/three.module.js";
 
     drawIdle() {
       this.nodes.player.rotation.y += .01;
-      this.camera.position.lerp(new THREE.Vector3(0, 16.8, 18.4), .05);
-      this.camera.lookAt(0, 1.05, -5.2);
+      this.camera.position.lerp(new THREE.Vector3(0, 19.4, 22.4), .05);
+      this.camera.lookAt(0, 1.05, -5.8);
       this.renderer.render(this.scene, this.camera);
       if (this.state === "menu") requestAnimationFrame(() => this.drawIdle());
     }
@@ -1168,9 +1168,9 @@ import * as THREE from "../vendor/three.module.js";
 
     updateCamera(dt) {
       const p = this.player.pos;
-      const desired = this.tmp.v1.set(p.x, 16.8, p.z + 18.4);
+      const desired = this.tmp.v1.set(p.x, 19.4, p.z + 22.4);
       this.camera.position.lerp(desired, 1 - Math.pow(.001, dt));
-      this.camera.lookAt(p.x, 1.05, p.z - 5.2);
+      this.camera.lookAt(p.x, 1.05, p.z - 5.8);
     }
 
     render() {
