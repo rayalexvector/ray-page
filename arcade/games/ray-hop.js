@@ -34,6 +34,7 @@
       this.charge = 0;
       this.chargeTime = 0;
       this.jump = null;
+      this.previous = null;
       this.current = null;
       this.next = null;
       this.player = null;
@@ -141,7 +142,8 @@
       this.jump = null;
       this.particles = [];
       this.floatTexts = [];
-      this.current = { x: w * .34, y: h * .66, size: 66, type: "start", label: "Ray" };
+      this.previous = null;
+      this.current = { x: w * .34, y: h * .66, size: 62, type: "start", label: "Ray" };
       this.player = { x: this.current.x, y: this.current.y - 36, squash: 0, rot: 0 };
       this.next = this.makeNextPlatform(this.current);
       this.updateHud("按住蓄力");
@@ -149,28 +151,28 @@
     }
 
     makeNextPlatform(from) {
-      const progress = clamp(this.score / 80, 0, 1.4);
+      const progress = clamp(this.score / 70, 0, 1.7);
       const side = from.x > this.w * .58 ? -1 : from.x < this.w * .42 ? 1 : (Math.random() < .5 ? -1 : 1);
-      const dist = rand(118 + progress * 8, 184 + progress * 18);
-      const dx = side * dist * rand(.62, .94);
-      const dy = -dist * rand(.38, .58);
-      const size = clamp(66 - this.score * .55, 42, 66);
+      const dist = rand(136 + progress * 12, 212 + progress * 22);
+      const dx = side * dist * rand(.64, .98);
+      const dy = -dist * rand(.36, .62);
+      const size = clamp(60 - this.score * .62, 36, 60);
       const types = [
-        { type: "normal", label: "R" },
-        { type: "normal", label: "AI" },
-        { type: "fish", label: "鱼" },
-        { type: "mimo", label: "Mi" },
-        { type: "tiny", label: "!" }
+        { type: "normal", label: "Ray" },
+        { type: "normal", label: "兔" },
+        { type: "rabbit", label: "兔" },
+        { type: "ray", label: "Ray" },
+        { type: "tiny", label: "兔" }
       ];
       let pick = types[Math.floor(Math.random() * (this.score < 5 ? 2 : types.length))];
-      if (pick.type === "tiny" && Math.random() < .55) pick = types[0];
-      const padSize = pick.type === "tiny" ? size * .76 : size;
+      if (pick.type === "tiny" && Math.random() < .42) pick = types[0];
+      const padSize = pick.type === "tiny" ? size * .70 : size;
       let x = from.x + dx;
       let y = from.y + dy;
       if (x < 58 || x > this.w - 58) x = from.x - dx * .86;
       if (y < 118) y = from.y + Math.abs(dy) * .72;
       return {
-        x: clamp(x, 54, this.w - 54),
+        x: clamp(x, 48, this.w - 48),
         y: clamp(y, 122, this.h - 150),
         size: padSize,
         type: pick.type,
@@ -273,9 +275,9 @@
       const dx = x - this.next.x;
       const dy = y - this.next.y;
       const off = Math.hypot(dx, dy);
-      const hitRadius = this.next.size * (this.next.type === "tiny" ? .54 : .62);
+      const hitRadius = this.next.size * (this.next.type === "tiny" ? .48 : .56);
       if (off <= hitRadius) {
-        const perfect = off <= Math.max(12, this.next.size * .18);
+        const perfect = off <= Math.max(9, this.next.size * .15);
         this.landSuccess(perfect, off);
       } else {
         this.player.x = x;
@@ -296,15 +298,16 @@
       } else {
         this.combo = 0;
       }
-      if (this.next.type === "fish") { gained += 5; label += " 鱼+5"; }
-      if (this.next.type === "mimo") { gained += 8; label += " MiMo+8"; }
-      if (this.next.type === "tiny") { gained += 3; label += " 窄台+3"; }
+      if (this.next.type === "rabbit") { gained += 5; label += " 兔+5"; }
+      if (this.next.type === "ray") { gained += 8; label += " Ray+8"; }
+      if (this.next.type === "tiny") { gained += 4; label += " 窄台+4"; }
       this.score += gained;
       this.addText(this.next.x, this.next.y - 58, label, perfect ? "#5dffb0" : "#25e4ff");
       this.burst(this.next.x, this.next.y - 8, perfect ? "#5dffb0" : "#25e4ff", perfect ? 28 : 14);
       UI.beep(perfect ? "score" : "tap");
       UI.vibrate(perfect ? [16, 24, 16] : 10);
 
+      this.previous = Object.assign({}, this.current, { ghost: true });
       this.current = Object.assign({}, this.next);
       this.player.x = this.current.x;
       this.player.y = this.current.y - 36;
@@ -319,9 +322,13 @@
     }
 
     recenterScene() {
-      const anchor = { x: this.w * .35, y: this.h * .66 };
+      const anchor = { x: this.w * .44, y: this.h * .66 };
       const dx = anchor.x - this.current.x;
       const dy = anchor.y - this.current.y;
+      if (this.previous) {
+        this.previous.x += dx;
+        this.previous.y += dy;
+      }
       this.current.x += dx;
       this.current.y += dy;
       this.player.x += dx;
@@ -375,6 +382,7 @@
       const ctx = this.ctx;
       this.drawBackground(ctx);
       this.drawGuide(ctx);
+      if (this.previous) this.drawPlatform(ctx, this.previous, false, true);
       this.drawPlatform(ctx, this.current, true);
       this.drawPlatform(ctx, this.next, false);
       this.drawPlayer(ctx);
@@ -429,6 +437,20 @@
     drawGuide(ctx) {
       if (!this.current || !this.next) return;
       ctx.save();
+      if (this.previous) {
+        ctx.globalAlpha = .30;
+        ctx.strokeStyle = "#5dffb0";
+        ctx.setLineDash([3, 7]);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.previous.x, this.previous.y - 10);
+        ctx.lineTo(this.current.x, this.current.y - 10);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(220,255,240,.76)";
+        ctx.font = "900 10px -apple-system, BlinkMacSystemFont, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("上一跳", (this.previous.x + this.current.x) / 2, (this.previous.y + this.current.y) / 2 - 18);
+      }
       ctx.globalAlpha = this.state === "idle" || this.state === "charging" ? .42 : .14;
       ctx.strokeStyle = "#bff8ff";
       ctx.setLineDash([6, 9]);
@@ -440,19 +462,20 @@
       ctx.restore();
     }
 
-    drawPlatform(ctx, p, active) {
+    drawPlatform(ctx, p, active, ghost) {
       const sx = p.size * .86;
       const sy = p.size * .42;
       const depth = p.size * .22;
       const colors = {
         start: ["#25e4ff", "#244b92", "#071a38"],
         normal: ["#62eaff", "#624bff", "#11164a"],
-        fish: ["#5dffb0", "#148f85", "#072b35"],
-        mimo: ["#8ee7ff", "#6f5dff", "#11124d"],
+        rabbit: ["#5dffb0", "#148f85", "#072b35"],
+        ray: ["#8ee7ff", "#6f5dff", "#11124d"],
         tiny: ["#ff77d9", "#9b32ff", "#25104a"]
       }[p.type] || ["#62eaff", "#624bff", "#11164a"];
       ctx.save();
       ctx.translate(p.x, p.y);
+      if (ghost) ctx.globalAlpha = .48;
       ctx.shadowBlur = active ? 28 : 18;
       ctx.shadowColor = colors[0];
       ctx.fillStyle = "rgba(0,0,0,.25)";
@@ -516,14 +539,14 @@
       ctx.beginPath();
       ctx.arc(0, 0, 21, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = "#ff4fd8";
+      const ear = ctx.createLinearGradient(0, -32, 0, -8);
+      ear.addColorStop(0, "#ffffff");
+      ear.addColorStop(.55, "#bff8ff");
+      ear.addColorStop(1, "#ff8ee5");
+      ctx.fillStyle = ear;
       ctx.beginPath();
-      ctx.moveTo(-13, -12);
-      ctx.lineTo(-23, -29);
-      ctx.lineTo(-5, -19);
-      ctx.moveTo(13, -12);
-      ctx.lineTo(23, -29);
-      ctx.lineTo(5, -19);
+      ctx.ellipse(-9, -24, 5, 18, -.22, 0, TAU);
+      ctx.ellipse(9, -24, 5, 18, .22, 0, TAU);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#050615";
@@ -613,7 +636,7 @@
       UI.beep("end");
       UI.vibrate([28, 44, 22]);
       UI.resultOverlay(this.host, {
-        title: "Ray Cat 掉下星台",
+        title: "Ray Rabbit 掉下星台",
         message: `分数 ${this.score} · 最佳中心连击 ${this.bestCombo} · 中心命中 ${this.perfects} 次`,
         actions: [
           { label: "再跳一局", kind: "primary", beep: "ok", onClick: () => this.restart() },

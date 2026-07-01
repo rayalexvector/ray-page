@@ -46,14 +46,14 @@
       id: "rayHop",
       title: "Ray Hop",
       icon: "🧊",
-      subtitle: "长按蓄力，松手跳到下一个发光星台。",
+      subtitle: "Ray Rabbit 长按蓄力，松手跳到下一个发光星台。",
       cls: window.RayGames.RayHop,
       help: {
         title: "Ray Hop 星台跳怎么玩",
         lines: [
-          "按住屏幕蓄力，松手后 Ray Cat 会沿虚线跳向下一个星台。",
+          "按住屏幕蓄力，松手后 Ray Rabbit 会沿虚线跳向下一个星台。",
           "蓄力越久跳得越远；落在星台中心会连续加分。",
-          "鱼、MiMo、窄台有额外分，跳空就结束。"
+          "Ray 台、兔台、窄台有额外分，跳空就结束。"
         ]
       }
     },
