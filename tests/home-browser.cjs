@@ -88,7 +88,15 @@ const mocks = () => {
     await page.waitForFunction(() => window.__draws > 2);
     const before = await page.evaluate(() => window.__draws);
     await page.waitForFunction(count => window.__draws > count, before);
-    await page.locator('#contact').scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+    await page.locator('#contact').scrollIntoViewIfNeeded();
+    await page.evaluate(() => new Promise(resolve => {
+      const observer = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) return;
+        observer.disconnect();
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+      observer.observe(document.getElementById('hero-bg'));
+    }));
     const paused = await page.evaluate(() => window.__draws); await page.waitForTimeout(300);
     assert.equal(await page.evaluate(() => window.__draws), paused);
     record('hero animation moves onscreen and stops offscreen');
