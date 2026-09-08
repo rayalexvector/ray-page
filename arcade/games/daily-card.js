@@ -98,7 +98,7 @@
 
     pause() { this.paused = true; }
     resume() { this.paused = false; }
-    destroy() { this.host.innerHTML = ""; }
+    destroy() { this.destroyed = true; this.host.innerHTML = ""; }
 
     resetCardFace() {
       const cardEl = this.host.querySelector("[data-card]");
@@ -114,28 +114,25 @@
       }
     }
 
-    drawCard() {
-      const cards = Storage.getCards();
-      if (cards.draws >= 3) {
-        UI.beep("bad");
-        UI.vibrate([20, 30, 20]);
-        UI.toast("今天 3 抽用完啦，明天再来摸");
-        return;
-      }
+    async drawCard() {
+      if (this.drawing || this.destroyed || this.paused) return;
+      this.drawing = true;
       const card = pickByWeight();
       const text = cardText(card);
+      let result;
+      try { result = await Storage.recordCardDraw(card); }
+      catch (_) { if (!this.destroyed) UI.toast('存储失败，抽卡未确认'); return; }
+      finally { this.drawing = false; }
+      if (this.destroyed) return;
+      if (!result.ok) {
+        UI.beep("bad");
+        UI.vibrate([20, 30, 20]);
+        UI.toast(result.reason === 'limit' ? '今天 3 抽用完啦，明天再来摸' : '存档已变更，本次抽卡未确认');
+        return;
+      }
+      const cards = result.cards;
       this.current = card;
       this.currentText = text;
-      cards.draws += 1;
-      cards.collection[card.id] = (cards.collection[card.id] || 0) + 1;
-      cards.history.unshift({ id: card.id, rarity: card.rarity, title: card.title, date: Storage.todayKey(), ts: Date.now() });
-      cards.history = cards.history.slice(0, 60);
-      Storage.saveCards(cards);
-      const stats = Storage.getStats();
-      stats.dailyCard.totalDraws = (stats.dailyCard.totalDraws || 0) + 1;
-      const currentRarest = stats.dailyCard.rarest || "";
-      if (!currentRarest || RARITY_ORDER[card.rarity] > (RARITY_ORDER[currentRarest] || 0)) stats.dailyCard.rarest = card.rarity;
-      Storage.saveStats(stats);
       this.reveal(card, text);
       this.renderStats();
       this.checkAchievements(cards);

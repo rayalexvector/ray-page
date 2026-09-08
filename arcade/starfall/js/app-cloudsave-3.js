@@ -24,6 +24,7 @@
     if (cloudSave || !window.RayCloudSave || !NS.Store.exportSave || !NS.Store.importSave) return;
     cloudSave = window.RayCloudSave.createClient({
       appId: 'starfall',
+      store: NS.Store.store,
       exportSave: NS.Store.exportSave,
       importSave: NS.Store.importSave,
       onStatus: updateSaveStatus,
@@ -31,6 +32,16 @@
     });
     NS.Store.setCloudClient(cloudSave);
     cloudSave.start();
+    window.addEventListener('ray-save-dialog-open', () => game && game.pause());
+    window.addEventListener('ray-save-owner-changing', () => {
+      if (game) game.returnToMenu();
+      showHome();
+    });
+    NS.Store.store.listeners.add(reason => {
+      if (['loaded', 'owner_changed', 'pulled', 'resolved'].includes(reason)) {
+        renderHomeStats(); renderShop(); renderCodex(); syncSettings();
+      }
+    });
   }
 
   const screens = {
@@ -182,8 +193,11 @@
         <div class="shop-info"><strong>${item.name} Lv.${lvl}/${max}</strong><small>${item.desc}</small></div>
         <button class="buy-btn" type="button" ${maxed || save.wallet.coins < cost ? 'disabled' : ''}>${maxed ? '满级' : cost}</button>
       `;
-      row.querySelector('.buy-btn').addEventListener('click', () => {
-        const res = NS.Store.buyUpgrade(item.id, max);
+      row.querySelector('.buy-btn').addEventListener('click', async event => {
+        event.currentTarget.disabled = true;
+        let res;
+        try { res = await NS.Store.buyUpgrade(item.id, max); }
+        catch (_) { toast('存储失败，升级未确认'); renderShop(); return; }
         if (res.ok){
           audio.sfx('coin');
           toast(`${item.name} 升到 Lv.${res.level}`);
@@ -299,9 +313,11 @@
     $('#soundToggle').addEventListener('change', ev => { NS.Store.setSettings({ sound: ev.target.checked }); syncSettings(); });
     $('#vibrateToggle').addEventListener('change', ev => { NS.Store.setSettings({ vibrate: ev.target.checked }); syncSettings(); });
     $('#calmToggle').addEventListener('change', ev => { NS.Store.setSettings({ calm: ev.target.checked }); syncSettings(); });
-    $('#resetSaveBtn').addEventListener('click', () => {
+    $('#resetSaveBtn').addEventListener('click', async () => {
       if (!confirm('确定清空 Ray Cat Starfall 的本地存档吗？')) return;
-      NS.Store.reset();
+      game.returnToMenu();
+      try { await NS.Store.reset(); }
+      catch (_) { toast('存储失败，重置未确认'); return; }
       syncSettings(); renderHomeStats(); renderCodex(); renderShop();
       toast('本地存档已清空');
       showHome();
@@ -315,7 +331,8 @@
     if (!('serviceWorker' in navigator)) return;
     const okOrigin = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!okOrigin) return;
-    navigator.serviceWorker.register('./sw-cloudsave-3.js?v=heavy-1').catch(() => {});
+    navigator.serviceWorker.register('./sw-cloudsave-3.js?v=heavy-1', { updateViaCache: 'none' })
+      .then(registration => registration.update()).catch(() => {});
   }
 
   function boot(){

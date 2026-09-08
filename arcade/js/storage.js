@@ -3,7 +3,6 @@
 
   const NS = "rayArcade.";
   let cloudClient = null;
-  let suppressCloudDirty = false;
 
   const defaults = {
     stats: {
@@ -32,11 +31,21 @@
     achievements: []
   };
 
+  const core = window.RaySaveCore;
+  const store = new core.Store('arcade', { schema: 2, appId: 'arcade', resetGeneration: 'initial', buckets: defaults });
+  let sessionBaselines = {};
+  store.listeners.add(reason => { if (reason === 'owner_changed') sessionBaselines = {}; });
+  function mutate(fn, options) {
+    const result = store.mutate(fn, options);
+    result.done.then(() => markCloudDirty('transaction')).catch(() => {});
+    return result.value;
+  }
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
   }
 
   function mergeDeep(base, incoming) {
+    if (Array.isArray(base)) return Array.isArray(incoming) ? incoming.filter(x => typeof x === "string") : clone(base);
     if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) return clone(base);
     const out = Array.isArray(base) ? base.slice() : Object.assign({}, base);
     Object.keys(incoming).forEach((key) => {
@@ -51,29 +60,22 @@
   }
 
   function load(bucket) {
-    const fallback = clone(defaults[bucket]);
-    try {
-      const raw = localStorage.getItem(NS + bucket);
-      if (!raw) return fallback;
-      const parsed = JSON.parse(raw);
-      return mergeDeep(fallback, parsed);
-    } catch (err) {
-      console.warn("RayArcade storage load failed", bucket, err);
-      return fallback;
-    }
+    return mergeDeep(clone(defaults[bucket]), store.read().buckets[bucket]);
   }
 
   function save(bucket, value) {
-    try {
-      localStorage.setItem(NS + bucket, JSON.stringify(value));
-    } catch (err) {
-      console.warn("RayArcade storage save failed", bucket, err);
-    }
-    markCloudDirty("bucket:" + bucket);
+    const before = load(bucket), next = clone(value);
+    return mutate((payload, preview) => {
+      if (!preview && !core.equal(payload.buckets[bucket], before) && !core.equal(payload.buckets[bucket], next)) {
+        // Opaque snapshots (cards and boards) cannot be repaired by arithmetic.
+        throw new Error('local_revision_conflict');
+      }
+      payload.buckets[bucket] = clone(next);
+    });
   }
 
   function markCloudDirty(reason) {
-    if (suppressCloudDirty || !cloudClient || typeof cloudClient.markDirty !== "function") return;
+    if (!cloudClient || typeof cloudClient.markDirty !== "function") return;
     cloudClient.markDirty(reason || "save");
   }
 
@@ -81,28 +83,6 @@
     cloudClient = client || null;
   }
 
-  function mergeProgress(localValue, remoteValue) {
-    if (window.RayCloudSave && typeof window.RayCloudSave.mergeProgress === "function") {
-      return window.RayCloudSave.mergeProgress(localValue, remoteValue);
-    }
-    if (remoteValue === undefined || remoteValue === null) return clone(localValue);
-    if (localValue === undefined || localValue === null) return clone(remoteValue);
-    if (typeof localValue === "number" && typeof remoteValue === "number") return Math.max(localValue, remoteValue);
-    if (Array.isArray(localValue) || Array.isArray(remoteValue)) {
-      const out = [];
-      [].concat(localValue || [], remoteValue || []).forEach((item) => {
-        if (!out.some((existing) => JSON.stringify(existing) === JSON.stringify(item))) out.push(clone(item));
-      });
-      return out;
-    }
-    if (typeof localValue === "object" && typeof remoteValue === "object") {
-      const out = {};
-      const keys = new Set(Object.keys(localValue).concat(Object.keys(remoteValue)));
-      keys.forEach((key) => { out[key] = mergeProgress(localValue[key], remoteValue[key]); });
-      return out;
-    }
-    return clone(remoteValue);
-  }
 
   function todayKey() {
     const d = new Date();
@@ -121,20 +101,22 @@
   }
 
   function notePlay(gameId) {
-    const stats = getStats();
-    stats.totalPlays = (stats.totalPlays || 0) + 1;
-    stats[gameId] = stats[gameId] || { plays: 0 };
-    stats[gameId].plays = (stats[gameId].plays || 0) + 1;
-    saveStats(stats);
-    return stats;
+    return mutate(payload => {
+      const stats = payload.buckets.stats;
+      stats.totalPlays += 1;
+      stats[gameId] = stats[gameId] || { plays: 0 };
+      stats[gameId].plays = (stats[gameId].plays || 0) + 1;
+      return clone(stats);
+    });
   }
 
   function updateBest(gameId, patch) {
-    const stats = getStats();
+    return mutate(payload => {
+    const stats = payload.buckets.stats;
     stats[gameId] = stats[gameId] || {};
     Object.keys(patch || {}).forEach((key) => {
       const val = patch[key];
-      if (typeof val === "number") {
+      if (Number.isFinite(val) && val >= 0 && /^best[A-Z]/.test(key)) {
         stats[gameId][key] = Math.max(Number(stats[gameId][key] || 0), val);
       } else if (Array.isArray(val)) {
         const set = new Set([].concat(stats[gameId][key] || [], val));
@@ -143,8 +125,8 @@
         stats[gameId][key] = val;
       }
     });
-    saveStats(stats);
-    return stats[gameId];
+    return clone(stats[gameId]);
+    });
   }
 
   function getSettings() {
@@ -152,10 +134,7 @@
   }
 
   function setSetting(key, value) {
-    const settings = getSettings();
-    settings[key] = !!value;
-    save("settings", settings);
-    return settings;
+    return mutate(payload => { payload.buckets.settings[key] = !!value; return clone(payload.buckets.settings); });
   }
 
   function getHelpSeen() {
@@ -167,9 +146,7 @@
   }
 
   function markHelpSeen(gameId) {
-    const seen = getHelpSeen();
-    seen[gameId] = true;
-    save("helpSeen", seen);
+    mutate(payload => { payload.buckets.helpSeen[gameId] = true; });
   }
 
   function getCards() {
@@ -178,13 +155,36 @@
     if (cards.date !== today) {
       cards.date = today;
       cards.draws = 0;
-      save("cards", cards);
+      mutate(payload => {
+        if (payload.buckets.cards.date !== today) {
+          payload.buckets.cards.date = today; payload.buckets.cards.draws = 0;
+        }
+      });
     }
     return cards;
   }
 
   function saveCards(cards) {
     save("cards", cards);
+  }
+  function recordCardDraw(card) {
+    const date = todayKey(), ts = Date.now();
+    const result = store.mutate(payload => {
+      const cards = payload.buckets.cards;
+      if (cards.date !== date) { cards.date = date; cards.draws = 0; }
+      if (cards.draws >= 3) return { ok: false, reason: 'limit' };
+      cards.draws += 1;
+      cards.collection[card.id] = (cards.collection[card.id] || 0) + 1;
+      cards.history.unshift({ id: card.id, rarity: card.rarity, title: card.title, date, ts });
+      cards.history = cards.history.slice(0, 60);
+      const stats = payload.buckets.stats.dailyCard;
+      stats.totalDraws += 1;
+      const rarity = ['N', 'R', 'SR', 'SSR', 'UR'];
+      if (rarity.indexOf(card.rarity) > rarity.indexOf(stats.rarest)) stats.rarest = card.rarity;
+      return { ok: true, cards: clone(cards) };
+    });
+    result.done.then(() => markCloudDirty('draw')).catch(() => {});
+    return result.done;
   }
 
   function getSessions() {
@@ -193,22 +193,27 @@
 
   function loadSession(gameId) {
     const sessions = getSessions();
+    sessionBaselines[gameId] = core.copy(sessions[gameId]);
     return sessions[gameId] || null;
   }
 
   function saveSession(gameId, session) {
-    const sessions = getSessions();
-    sessions[gameId] = Object.assign({}, session || {}, { updatedAt: Date.now() });
-    save("sessions", sessions);
-    return sessions[gameId];
+    const next = Object.assign({}, session || {}, { updatedAt: Date.now() });
+    const before = core.copy(sessionBaselines[gameId]);
+    sessionBaselines[gameId] = clone(next);
+    return mutate((payload, preview) => {
+      if (!preview && !core.equal(payload.buckets.sessions[gameId], before)) throw new Error('session_conflict');
+      payload.buckets.sessions[gameId] = clone(next); return clone(next);
+    });
   }
 
   function clearSession(gameId) {
-    const sessions = getSessions();
-    if (sessions[gameId]) {
-      delete sessions[gameId];
-      save("sessions", sessions);
-    }
+    const before = core.copy(Object.hasOwn(sessionBaselines, gameId) ? sessionBaselines[gameId] : getSessions()[gameId]);
+    sessionBaselines[gameId] = undefined;
+    mutate((payload, preview) => {
+      if (!preview && !core.equal(payload.buckets.sessions[gameId], before)) throw new Error('session_conflict');
+      delete payload.buckets.sessions[gameId];
+    });
   }
 
   function getAchievements() {
@@ -216,48 +221,26 @@
   }
 
   function addAchievement(id) {
-    const list = getAchievements();
-    if (!list.includes(id)) {
-      list.push(id);
-      save("achievements", list);
-      return true;
-    }
-    return false;
+    if (typeof id !== 'string' || !id) return false;
+    return mutate(payload => {
+      const list = payload.buckets.achievements;
+      if (list.includes(id)) return false;
+      list.push(id); return true;
+    });
   }
 
   function resetAll() {
-    Object.keys(defaults).forEach((bucket) => save(bucket, clone(defaults[bucket])));
+    const generation = core.id();
+    mutate(payload => { payload.buckets = clone(defaults); payload.resetGeneration = generation; }, { reset: true });
   }
 
   function exportSave() {
-    return {
-      schema: 1,
-      appId: "arcade",
-      exportedAt: Date.now(),
-      buckets: {
-        stats: load("stats"),
-        settings: load("settings"),
-        cards: load("cards"),
-        sessions: load("sessions"),
-        helpSeen: load("helpSeen"),
-        achievements: load("achievements")
-      }
-    };
+    return store.read();
   }
 
   function importSave(payload) {
-    const source = payload && (payload.buckets || payload.payload || payload);
-    if (!source || typeof source !== "object") return exportSave();
-    suppressCloudDirty = true;
-    try {
-      Object.keys(defaults).forEach((bucket) => {
-        if (source[bucket] === undefined) return;
-        save(bucket, mergeProgress(load(bucket), source[bucket]));
-      });
-    } finally {
-      suppressCloudDirty = false;
-    }
-    return exportSave();
+    if (!payload || payload.appId !== 'arcade' || payload.schema !== 2) return Promise.reject(new Error('invalid_save'));
+    return store.replace(payload);
   }
 
   function flushCloudSave(options) {
@@ -266,6 +249,7 @@
 
   window.RayArcade = window.RayArcade || {};
   window.RayArcade.Storage = {
+    store,
     NS,
     defaults,
     load,
@@ -282,6 +266,7 @@
     markHelpSeen,
     getCards,
     saveCards,
+    recordCardDraw,
     getSessions,
     loadSession,
     saveSession,

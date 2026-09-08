@@ -1,0 +1,33 @@
+name: Ray Verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - name: Browser regression
+        run: |
+          export PLAYWRIGHT_CORE="$PWD/node_modules/playwright-core"
+          export CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")"
+          npm run test:browser
