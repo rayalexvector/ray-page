@@ -5,7 +5,8 @@
     "preview": "node tools/preview.cjs",
     "test": "node --test tests/*.test.cjs",
     "check": "node tools/check-site.cjs",
-    "test:browser": "node tests/home-browser.cjs && node tests/game-browser-smoke.cjs"
+    "browser:install": "node tools/playwright.cjs install",
+    "test:browser": "node tools/playwright.cjs test"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.4",

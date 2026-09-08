@@ -8,10 +8,9 @@ const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 const output = fs.mkdtempSync('/tmp/rayalex-game-browser-');
-const executable = fs.realpathSync(process.env.CHROMIUM_PATH || chromium.executablePath());
-if (executable.includes('/.hermes/') || executable.includes('/hermes/')) throw new Error('Browser executable is not isolated');
+const launchOptions = require('../tools/playwright.cjs').browserLaunchOptions();
 const results = [], saves = new Map(), receipts = new Map();
-const metrics = { mockReads: 0, mockWrites: 0, legacyRejected: 0, externalBlocked: [] };
+const metrics = { mockReads: 0, mockWrites: 0, legacyRejected: 0, externalBlocked: [], workerResources: [] };
 let legacy = false;
 const oldFiles = new Map();
 const LEGACY_BASELINE = '20444af3c65e4fafd993fc2b89db8015148524e4';
@@ -67,13 +66,14 @@ const server = http.createServer(async (request, response) => {
       if (!oldFiles.has(relative)) oldFiles.set(relative, execFileSync('git', ['show', LEGACY_BASELINE + ':' + relative], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }));
       data = oldFiles.get(relative);
     } else data = fs.readFileSync(file);
+    if (/\/sw[^/]*\.js$/.test(relative)) metrics.workerResources.push({ path: relative, legacy, sha256: crypto.createHash('sha256').update(data).digest('hex') });
     response.writeHead(200, { 'content-type': mime[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store', 'service-worker-allowed': '/arcade/starfall/' });
     response.end(data);
   } catch (_) { response.writeHead(404); response.end('not found'); }
 });
 
-async function configure(context, owner, origin) {
-  await context.route('**/*', route => {
+async function configure(context, owner, origin, routeRequests = true) {
+  if (routeRequests) await context.route('**/*', route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
     metrics.externalBlocked.push(url.origin + url.pathname); return route.abort();
@@ -241,12 +241,21 @@ async function frontier(page, origin, label) {
 
 async function workerUpgrade(browser, origin) {
   const context = await browser.newContext();
-  await configure(context, 'smoke-upgrade', origin);
+  // SW update-script requests cannot be routed reliably by Playwright. This
+  // context uses the real loopback server; browser DNS blocks all other hosts.
+  await configure(context, 'smoke-upgrade', origin, false);
   const page = await context.newPage();
+  const failures = [];
+  context.on('console', message => { if (['error', 'warning'].includes(message.type())) failures.push('context: ' + message.text()); });
+  page.on('pageerror', error => failures.push(String(error)));
+  page.on('console', message => { if (['error', 'warning'].includes(message.type())) failures.push(message.text()); });
+  page.on('requestfailed', request => failures.push(request.url() + ': ' + request.failure()?.errorText));
   try {
     legacy = true;
     await page.goto(origin + '/arcade/starfall/');
+    console.log('SW upgrade: legacy page loaded, waiting for initial controller');
     await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    console.log('SW upgrade: original controller active');
     const originalURL = await page.evaluate(() => navigator.serviceWorker.controller.scriptURL);
     assert.ok(originalURL.includes('/sw-cloudsave-3.js'));
     await page.evaluate(async () => {
@@ -255,12 +264,19 @@ async function workerUpgrade(browser, origin) {
       await cache.put('/__mock/api/v2/auth/me', new Response('{"synthetic":true}'));
     });
     legacy = false;
+    console.log('SW upgrade: requesting safe controller update');
     await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration();
-      await new Promise(async (resolve, reject) => {
+      window.__upgradeEvents = [];
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        window.__upgradeEvents.push('updatefound:' + worker?.state);
+        worker?.addEventListener('statechange', () => window.__upgradeEvents.push('state:' + worker.state));
+      });
+      await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('controller upgrade timeout')), 30000);
         navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(timer); resolve(); }, { once: true });
-        await registration.update();
+        registration.update().catch(error => { clearTimeout(timer); reject(error); });
       });
     });
     const evidence = await page.evaluate(async () => {
@@ -292,6 +308,12 @@ async function workerUpgrade(browser, origin) {
     }), false);
     results.push({ name: 'old-sw-upgrade', ok: true, baseline: LEGACY_BASELINE, originalURL, protocol: 2, staticEntries: evidence.entries.length, apiCacheClean: true, offline: true });
     console.log(JSON.stringify(results.at(-1)));
+  } catch (error) {
+    const registration = await page.evaluate(async () => ({ registrations: (await navigator.serviceWorker.getRegistrations()).map(r => ({
+      scope: r.scope, active: r.active?.state, waiting: r.waiting?.state, installing: r.installing?.state
+    })), events: window.__upgradeEvents, caches: await caches.keys() })).catch(() => []);
+    console.error(JSON.stringify({ stage: 'worker-upgrade', error: String(error), stack: error.stack, registration, failures }));
+    throw error;
   } finally { legacy = false; await context.close(); }
 }
 
@@ -351,13 +373,15 @@ async function remainingGame(page, origin, label, id) {
 async function main() {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + server.address().port;
-  console.log(JSON.stringify({ origin, output, playwright: require.resolve('playwright-core'), browser: executable }));
+  console.log(JSON.stringify({ origin, output, playwright: require.resolve('playwright-core'), browser: launchOptions.executablePath || 'Playwright headless shell', cache: process.env.PLAYWRIGHT_BROWSERS_PATH }));
   let browser;
   try {
-    browser = await chromium.launch({ executablePath: executable, headless: true, args: [
+    browser = await chromium.launch({ ...launchOptions, headless: true, args: [
       '--no-sandbox', '--disable-gpu', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-background-networking',
-      '--disable-component-update', '--disable-sync', '--no-first-run', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost'
+      '--disable-component-update', '--disable-sync', '--no-first-run', '--no-proxy-server',
+      '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost'
     ] });
+    console.log(JSON.stringify({ browserVersion: browser.version(), launchOptions }));
     if (!process.env.GAME_ONLY || process.env.GAME_ONLY === 'sw') await workerUpgrade(browser, origin);
     for (const [label, viewport] of (process.env.GAME_ONLY === 'sw' ? [] : [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]])) {
       const context = await browser.newContext({ viewport, hasTouch: label === 'mobile', deviceScaleFactor: 1 });
@@ -394,4 +418,4 @@ async function main() {
     console.log(JSON.stringify({ closed: true, origin, output, results: results.length, metrics }));
   }
 }
-main().catch(() => { process.exitCode = 1; });
+main().catch(error => { console.error(error.stack || String(error)); process.exitCode = 1; });

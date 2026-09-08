@@ -56,9 +56,9 @@ const mocks = () => {
   console.log(JSON.stringify({ output, port, pid: process.pid }));
   let browser;
   try {
-    const executablePath = fs.realpathSync(process.env.CHROMIUM_PATH || chromium.executablePath());
-    if (executablePath.includes('/hermes/') || executablePath.includes('/.hermes/')) throw new Error('Browser executable is not isolated');
-    browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
+    const launchOptions = require('../tools/playwright.cjs').browserLaunchOptions();
+    browser = await chromium.launch({ ...launchOptions, headless: true, args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
+    console.log(JSON.stringify({ browserVersion: browser.version(), launchOptions }));
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     context.setDefaultTimeout(10000);
     await context.addInitScript(mocks);

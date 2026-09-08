@@ -38,11 +38,11 @@ npm run preview
 ```bash
 npm run check
 npm test
-npx playwright install chromium
+npm run browser:install
 npm run test:browser
 ```
 
-浏览器回归使用独立临时环境、合成账号和模拟上游。可用 `CHROMIUM_PATH` 指定已安装的 Codex 隔离浏览器。禁止使用 Hermes 的浏览器路径。测试不是实际邮件、模型账单、真机麦克风或 Safari 验收。
+浏览器回归使用独立临时环境、合成账号和模拟上游。Linux 优先使用已安装的稳定版 Chrome，CI 明确使用该配置并记录版本；其他环境回退到打包 Chromium。`browser:install` 只安装到 `~/.codex/browser/raypage-playwright`，不使用共享缓存。可用 `CHROMIUM_PATH` 指定已安装的隔离浏览器。禁止使用 Hermes 的浏览器路径。测试不是实际邮件、模型账单、真机麦克风或 Safari 验收。
 
 公开仓库只包含前端和测试，不包含生产凭据、用户数据或 Worker 私有源码。后端在本机 `.local-secrets/ray-backend` 独立版本管理，包含迁移、恢复验证和受保护发布工具；该目录不能提交到本仓库或暴露给 HTTP 服务。
 
