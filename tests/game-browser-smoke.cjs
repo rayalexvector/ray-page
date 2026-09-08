@@ -199,7 +199,17 @@ async function starfall(page, origin, label) {
   return { pixels, actualScore, persistedCoins: wallet - 70, upgrade: 1 };
 }
 async function merge2048(page, origin, label) {
-  await enterArcade(page, origin, 'merge2048'); await snapshot(page, label + '-2048-start');
+  await enterArcade(page, origin, 'merge2048');
+  // A random opening can already be left-aligned, where a correct swipe is a no-op.
+  // Restore a valid mergeable board so the real pointer gesture has a known result.
+  await page.evaluate(() => window.__activeGame.restoreProgress({
+    active: true,
+    board: [[0, 1, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+    score: 0,
+    bestLevel: 1,
+    celebrated: {}
+  }));
+  await snapshot(page, label + '-2048-start');
   const before = await page.evaluate(() => JSON.stringify(window.__activeGame.board));
   const box = await page.locator('.merge-board').boundingBox();
   await page.mouse.move(box.x + box.width * .8, box.y + box.height * .5); await page.mouse.down();
@@ -207,6 +217,11 @@ async function merge2048(page, origin, label) {
   await page.waitForTimeout(200);
   const moved = await page.evaluate(() => JSON.stringify(window.__activeGame.board));
   assert.notEqual(moved, before, '2048 mouse swipe must move board');
+  const merged = await page.evaluate(() => ({
+    leftTile: window.__activeGame.board[0][0], score: window.__activeGame.score
+  }));
+  assert.equal(merged.leftTile, 2, 'left swipe must merge the two level-one tiles');
+  assert.equal(merged.score, 32, 'the pointer gesture must award the merge score');
   await page.evaluate(() => window.RayArcade.Storage.store.tail);
   const saved = await page.evaluate(() => window.RayArcade.Storage.loadSession('merge2048'));
   assert.equal(saved.board.length, 4);
