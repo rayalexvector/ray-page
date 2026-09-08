@@ -836,7 +836,6 @@
       this.flash = .55;
       this.shake = 24;
       const coins = Math.max(0, Math.round(this.run.coins));
-      NS.Store.addCoins(coins);
       const result = {
         score: Math.floor(this.run.score),
         wave: this.run.wave,

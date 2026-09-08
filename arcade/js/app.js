@@ -187,6 +187,7 @@
     if (cloudSave || !window.RayCloudSave || !Storage.exportSave || !Storage.importSave) return;
     cloudSave = window.RayCloudSave.createClient({
       appId: "arcade",
+      store: Storage.store,
       exportSave: Storage.exportSave,
       importSave: Storage.importSave,
       onStatus: updateSaveStatus,
@@ -194,6 +195,20 @@
     });
     Storage.setCloudClient(cloudSave);
     cloudSave.start();
+    window.addEventListener('ray-save-owner-changing', () => renderLobby());
+    let recoveryGame = null, recoveryWasPaused = false;
+    window.addEventListener('ray-save-dialog-open', () => {
+      recoveryGame = currentGame;
+      recoveryWasPaused = currentGame && currentGame.paused;
+      if (currentGame) currentGame.pause();
+    });
+    window.addEventListener('ray-save-dialog-close', () => {
+      if (currentGame && currentGame === recoveryGame && !recoveryWasPaused) currentGame.resume();
+      recoveryGame = null;
+    });
+    Storage.store.listeners.add(reason => {
+      if (!currentGame && ['loaded', 'owner_changed', 'pulled', 'resolved'].includes(reason)) renderLobby();
+    });
   }
 
   function statText(game) {
@@ -264,7 +279,7 @@
           <div class="lobby-stats">
             <span class="stat-pill">🎮 ${stats.totalPlays || 0} 局</span>
             <span class="stat-pill">🏆 ${achievements.length}/${Object.keys(ACHIEVEMENTS).length} 成就</span>
-            <span class="stat-pill save-pill" data-save-status data-state="${UI.escapeHtml(saveStatus.state || "local")}">${UI.escapeHtml(saveStatus.label || "💾 本机存档")}</span>
+            <span class="stat-pill save-pill" role="button" tabindex="0" title="存档管理" data-save-status data-state="${UI.escapeHtml(saveStatus.state || "local")}">${UI.escapeHtml(saveStatus.label || "💾 本机存档")}</span>
           </div>
         </header>
         <div class="lobby-list">
@@ -349,7 +364,7 @@
           <button class="back-btn" data-back>返回游戏厅</button>
           <div class="game-title-wrap">
             <h1 class="game-title">${UI.escapeHtml(meta.title)}</h1>
-            <div class="game-mini">${UI.escapeHtml(meta.subtitle)}</div>
+            <div class="game-mini" data-save-status role="button" tabindex="0" title="存档管理">${UI.escapeHtml(saveStatus.label)}</div>
           </div>
           <button class="icon-btn restart-top" data-restart aria-label="重新开始">↻</button>
           <button class="icon-btn" data-pause aria-label="暂停">Ⅱ</button>

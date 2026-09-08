@@ -22,6 +22,8 @@
       this.w = 0;
       this.h = 0;
       this.raf = 0;
+      this.lastTick = null;
+      this.accumulator = 0;
       this.resizeObs = null;
       this.paused = false;
       this.running = false;
@@ -72,6 +74,8 @@
     }
 
     restart() {
+      this.lastTick = null;
+      this.accumulator = 0;
       this.clearResult();
       this.round = 1;
       this.score = 0;
@@ -95,6 +99,8 @@
 
     pause() {
       this.paused = true;
+      this.lastTick = null;
+      this.accumulator = 0;
       if (this.raf) cancelAnimationFrame(this.raf);
       this.raf = 0;
     }
@@ -213,13 +219,27 @@
 
     kick() {
       if (!this.running || this.paused || this.raf) return;
-      this.raf = requestAnimationFrame(() => this.loop());
+      this.raf = requestAnimationFrame(t => this.loop(t));
     }
 
-    loop() {
+    loop(timestamp) {
       this.raf = 0;
       if (!this.running || this.paused) return;
-      this.update();
+      const step = 1000 / 60;
+      if (document.hidden) {
+        this.lastTick = null;
+        this.accumulator = 0;
+        this.kick();
+        return;
+      }
+      if (this.lastTick !== null) this.accumulator += Math.max(0, Math.min(100, timestamp - this.lastTick));
+      this.lastTick = timestamp;
+      let steps = 0;
+      while (this.accumulator + 1e-7 >= step && steps < 6 && this.running && !this.paused && !this.dead) {
+        this.update();
+        this.accumulator = Math.max(0, this.accumulator - step);
+        steps += 1;
+      }
       this.draw();
       this.kick();
     }

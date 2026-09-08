@@ -1,9 +1,7 @@
-(function(){
+(function () {
   'use strict';
   const NS = window.RayStarfall = window.RayStarfall || {};
-  const KEY = 'rayStarfall.save.v1';
-  let cloudClient = null;
-  let suppressCloudDirty = false;
+  const core = window.RaySaveCore;
   const defaultSave = {
     version: 1,
     createdAt: 0,
@@ -38,161 +36,83 @@
     },
     helpSeen: false
   };
-
-  function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
-
-  function mergeDefaults(target, src){
-    Object.keys(src).forEach(key => {
-      if (target[key] === undefined) target[key] = clone(src[key]);
-      else if (src[key] && typeof src[key] === 'object' && !Array.isArray(src[key])) mergeDefaults(target[key], src[key]);
-    });
-    return target;
+  const store = new core.Store('starfall', { schema: 2, appId: 'starfall', resetGeneration: 'initial', save: defaultSave });
+  let cloudClient;
+  const get = () => store.read().save;
+  function mutate(fn, options) {
+    const result = store.mutate(payload => fn(payload.save, payload), options);
+    result.done.then(() => { if (cloudClient) cloudClient.markDirty(); }).catch(() => {});
+    return result;
   }
-
-  function load(){
-    let data;
-    try { data = JSON.parse(localStorage.getItem(KEY) || 'null'); }
-    catch(e){ data = null; }
-    if (!data || typeof data !== 'object') {
-      data = clone(defaultSave);
-      data.createdAt = Date.now();
-    }
-    data = mergeDefaults(data, defaultSave);
-    data.updatedAt = Date.now();
-    return data;
+  function getSettings() { return get().settings; }
+  function setSettings(next) {
+    return mutate(save => {
+      ['sound', 'vibrate', 'calm'].forEach(key => { if (typeof next[key] === 'boolean') save.settings[key] = next[key]; });
+    }).done;
   }
-
-  let save = load();
-
-  function persist(){
-    save.updatedAt = Date.now();
-    try { localStorage.setItem(KEY, JSON.stringify(save)); }
-    catch(e){ /* Safari private mode may reject localStorage. Game still works for this session. */ }
-    markCloudDirty('starfall:persist');
+  function setHelpSeen(value) { return mutate(save => { save.helpSeen = !!value; }).done; }
+  const amount = n => Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  function addCoins(n) {
+    n = amount(n);
+    return mutate(save => { save.wallet.coins += n; save.stats.totalCoins += n; save.stats.totalCollected += n; return save.wallet.coins; }).value;
   }
-
-  function markCloudDirty(reason){
-    if (suppressCloudDirty || !cloudClient || typeof cloudClient.markDirty !== 'function') return;
-    cloudClient.markDirty(reason || 'save');
+  function spendCoins(n) {
+    n = amount(n);
+    return mutate(save => {
+      if (save.wallet.coins < n) return false;
+      save.wallet.coins -= n; return true;
+    }).done;
   }
-
-  function setCloudClient(client){ cloudClient = client || null; }
-
-  function mergeProgress(localValue, remoteValue){
-    if (window.RayCloudSave && typeof window.RayCloudSave.mergeProgress === 'function') return window.RayCloudSave.mergeProgress(localValue, remoteValue);
-    if (remoteValue === undefined || remoteValue === null) return clone(localValue);
-    if (localValue === undefined || localValue === null) return clone(remoteValue);
-    if (typeof localValue === 'number' && typeof remoteValue === 'number') return Math.max(localValue, remoteValue);
-    if (Array.isArray(localValue) || Array.isArray(remoteValue)) return [].concat(localValue || [], remoteValue || []);
-    if (typeof localValue === 'object' && typeof remoteValue === 'object'){
-      const out = {};
-      const keys = new Set(Object.keys(localValue).concat(Object.keys(remoteValue)));
-      keys.forEach(key => { out[key] = mergeProgress(localValue[key], remoteValue[key]); });
-      return out;
-    }
-    return clone(remoteValue);
-  }
-
-  function get(){ return save; }
-  function getSettings(){ return save.settings; }
-  function setSettings(next){
-    save.settings = Object.assign({}, save.settings, next || {});
-    persist();
-  }
-  function setHelpSeen(value){ save.helpSeen = !!value; persist(); }
-
-  function addCoins(amount){
-    const n = Math.max(0, Math.floor(amount || 0));
-    save.wallet.coins += n;
-    save.stats.totalCoins += n;
-    save.stats.totalCollected += n;
-    persist();
-    return save.wallet.coins;
-  }
-
-  function spendCoins(amount){
-    const n = Math.max(0, Math.floor(amount || 0));
-    if (save.wallet.coins < n) return false;
-    save.wallet.coins -= n;
-    persist();
-    return true;
-  }
-
-  function priceForUpgrade(id){
-    const lvl = save.upgrades[id] || 0;
+  function price(id, level) {
     const base = { hull: 70, fireRate: 80, magnet: 65, dash: 75, coin: 90, nova: 120 }[id] || 80;
-    return Math.round(base * Math.pow(1.65, lvl));
+    return Math.round(base * Math.pow(1.65, level));
   }
-
-  function buyUpgrade(id, maxLevel){
-    if (!(id in save.upgrades)) return { ok:false, reason:'unknown' };
-    const max = maxLevel || 5;
-    if (save.upgrades[id] >= max) return { ok:false, reason:'max' };
-    const cost = priceForUpgrade(id);
-    if (!spendCoins(cost)) return { ok:false, reason:'coins', cost };
-    save.upgrades[id] += 1;
-    persist();
-    return { ok:true, level: save.upgrades[id], cost };
+  function priceForUpgrade(id) { return price(id, get().upgrades[id] || 0); }
+  function buyUpgrade(id, maxLevel = 5) {
+    return mutate(save => {
+      if (!Object.hasOwn(save.upgrades, id)) return { ok: false, reason: 'unknown' };
+      const level = save.upgrades[id];
+      if (level >= Math.min(5, maxLevel)) return { ok: false, reason: 'max' };
+      const cost = price(id, level);
+      if (save.wallet.coins < cost) return { ok: false, reason: 'coins', cost };
+      save.wallet.coins -= cost;
+      save.upgrades[id] += 1;
+      return { ok: true, level: save.upgrades[id], cost };
+    }).done;
   }
-
-  function markAchievement(id){
-    if (save.achievements[id]) return false;
-    save.achievements[id] = Date.now();
-    persist();
-    return true;
+  function markAchievement(id) {
+    const at = Date.now();
+    return mutate(save => {
+      if (save.achievements[id]) return false;
+      save.achievements[id] = at; return true;
+    }).value;
   }
-
-  function hasAchievement(id){ return !!save.achievements[id]; }
-
-  function recordRun(run){
-    run = run || {};
-    const s = save.stats;
-    s.totalRuns += 1;
-    s.totalScore += Math.floor(run.score || 0);
-    s.totalKills += Math.floor(run.kills || 0);
-    s.totalTime += Math.floor(run.time || 0);
-    s.bestScore = Math.max(s.bestScore, Math.floor(run.score || 0));
-    s.bestWave = Math.max(s.bestWave, Math.floor(run.wave || 0));
-    s.bestTime = Math.max(s.bestTime, Math.floor(run.time || 0));
-    s.bestKills = Math.max(s.bestKills, Math.floor(run.kills || 0));
-    s.bossKills += Math.floor(run.bossKills || 0);
-    persist();
+  function hasAchievement(id) { return !!get().achievements[id]; }
+  function recordRun(run = {}) {
+    return mutate(save => {
+      const s = save.stats;
+      const coins = amount(run.coins);
+      save.wallet.coins += coins; s.totalCoins += coins; s.totalCollected += coins;
+      s.totalRuns += 1;
+      s.totalScore += amount(run.score); s.totalKills += amount(run.kills); s.totalTime += amount(run.time);
+      s.bestScore = Math.max(s.bestScore, amount(run.score));
+      s.bestWave = Math.max(s.bestWave, amount(run.wave));
+      s.bestTime = Math.max(s.bestTime, amount(run.time));
+      s.bestKills = Math.max(s.bestKills, amount(run.kills));
+      s.bossKills += amount(run.bossKills);
+    }).done;
   }
-
-  function reset(){
-    save = clone(defaultSave);
-    save.createdAt = Date.now();
-    save.updatedAt = Date.now();
-    persist();
+  function reset() {
+    const generation = core.id();
+    return mutate((save, payload) => { payload.save = core.copy(defaultSave); payload.resetGeneration = generation; }, { reset: true }).done;
   }
-
-  function exportSave(){
-    return {
-      schema: 1,
-      appId: 'starfall',
-      exportedAt: Date.now(),
-      save: clone(save)
-    };
+  function exportSave() { return store.read(); }
+  function importSave(payload) {
+    if (!payload || payload.schema !== 2 || payload.appId !== 'starfall') return Promise.reject(new Error('invalid_save'));
+    return store.replace(payload);
   }
-
-  function importSave(payload){
-    const incoming = payload && (payload.save || payload.payload || payload);
-    if (!incoming || typeof incoming !== 'object') return exportSave();
-    suppressCloudDirty = true;
-    try {
-      save = mergeProgress(save, mergeDefaults(clone(incoming), defaultSave));
-      save.version = defaultSave.version;
-      save.updatedAt = Date.now();
-      try { localStorage.setItem(KEY, JSON.stringify(save)); } catch(e){ /* noop */ }
-    } finally {
-      suppressCloudDirty = false;
-    }
-    return exportSave();
-  }
-
-  function flushCloudSave(options){
-    return cloudClient && typeof cloudClient.flush === 'function' ? cloudClient.flush(options || { force:true }) : Promise.resolve(false);
-  }
-
-  NS.Store = { get, getSettings, setSettings, setHelpSeen, addCoins, spendCoins, buyUpgrade, priceForUpgrade, markAchievement, hasAchievement, recordRun, reset, exportSave, importSave, setCloudClient, flushCloudSave, KEY };
+  function setCloudClient(client) { cloudClient = client; }
+  function flushCloudSave(options) { return cloudClient ? cloudClient.flush(options) : Promise.resolve(false); }
+  NS.Store = { store, get, getSettings, setSettings, setHelpSeen, addCoins, spendCoins, buyUpgrade,
+    priceForUpgrade, markAchievement, hasAchievement, recordRun, reset, exportSave, importSave, setCloudClient, flushCloudSave };
 })();

@@ -1,0 +1,11 @@
+[data-save-status][role="button"], #saveStatusText[role="button"] { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.ray-save-dialog { box-sizing: border-box; width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; background: #191d25; color: #f2f5f8; border: 1px solid #777; border-radius: 8px; padding: 20px; font: 15px/1.5 system-ui, sans-serif; }
+.ray-save-dialog::backdrop { background: #0009; }
+.ray-save-dialog h2 { margin: 0 0 12px; font-size: 22px; }
+.ray-save-dialog h3 { margin: 20px 0 10px; font-size: 17px; }
+.ray-save-dialog button { max-width: 100%; white-space: normal; background: #313840; color: #fff; border: 1px solid #7b838c; border-radius: 6px; padding: 8px 12px; cursor: pointer; font: inherit; }
+.ray-save-dialog button:focus-visible { outline: 2px solid #64ddad; outline-offset: 2px; }
+.ray-save-dialog button:disabled { opacity: .5; cursor: wait; }
+.ray-save-actions, .ray-save-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ray-save-copy { justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #48505a; }
+.ray-save-copies { margin-bottom: 16px; }

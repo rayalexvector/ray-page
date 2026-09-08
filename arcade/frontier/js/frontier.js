@@ -193,6 +193,7 @@ import * as THREE from "../vendor/three.module.js";
       if (!window.RayCloudSave || !Storage || !Storage.exportSave || !Storage.importSave) return;
       this.cloudSave = window.RayCloudSave.createClient({
         appId: "arcade",
+        store: Storage.store,
         exportSave: Storage.exportSave,
         importSave: Storage.importSave,
         onStatus: (status) => {
@@ -202,6 +203,19 @@ import * as THREE from "../vendor/three.module.js";
       });
       Storage.setCloudClient(this.cloudSave);
       this.cloudSave.start();
+      window.addEventListener('ray-save-dialog-open', () => this.pause());
+      Storage.store.listeners.add(reason => {
+        if (['loaded', 'owner_changed', 'pulled', 'resolved'].includes(reason)) this.renderMenuStats();
+      });
+      window.addEventListener('ray-save-owner-changing', () => {
+        const wasMenu = this.state === 'menu';
+        this.pause();
+        this.state = 'menu';
+        this.result.classList.remove('is-open');
+        this.menu.classList.add('is-open');
+        this.upgrades.hidden = true;
+        if (!wasMenu && this.renderer) this.drawIdle();
+      });
     }
 
     bindUI() {

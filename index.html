@@ -58,7 +58,7 @@
   }
   </script>
 </head>
-<body class="intro-active">
+<body>
   <section id="intro" class="intro-stage" aria-label="Ray cinematic gallery intro">
     <div class="intro-media" aria-hidden="true">
       <div class="intro-camera-frame">
@@ -354,6 +354,7 @@
           </div>
         </div>
         <button id="chat-new" class="chat-new" type="button">+ 新对话</button>
+        <button id="chat-history-toggle" class="chat-clear" type="button" aria-controls="chat-history" aria-expanded="false">历史对话</button>
         <button id="chat-clear" class="chat-clear" type="button">清空当前对话</button>
         <div id="chat-quota-status" class="chat-quota-status">今日额度：—</div>
         <div id="chat-history" class="chat-history" aria-label="本地历史对话"></div>
@@ -364,6 +365,7 @@
         <header class="chat-header">
           <p class="eyebrow">RAY × MIMO</p>
           <h2 id="chat-title">Ray AI Chat</h2>
+          <p id="chat-storage-warning" role="status" hidden>本机存储失败，当前内容仅保留在本页面，请勿刷新。</p>
         </header>
         <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
         <p id="chat-typing-status" class="chat-typing-status" role="status" aria-live="polite" hidden></p>
@@ -374,7 +376,7 @@
               <button id="chat-image-button" class="chat-tool-button" type="button" aria-label="上传图片">图片</button>
               <button id="chat-voice-button" class="chat-tool-button" type="button" aria-label="录制语音">语音</button>
             </div>
-            <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="ENJOY NEXT GEN AGENT"></textarea>
+            <textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="输入消息" aria-label="聊天消息"></textarea>
             <button class="chat-send" type="submit" aria-label="发送消息">发送</button>
           </div>
           <input id="chat-image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
@@ -833,17 +835,30 @@
     }, { passive: true });
 
     const start = performance.now();
+    let heroVisible = true;
+    let heroFrame = null;
     function render(now) {
+      heroFrame = null;
+      if (document.hidden || !heroVisible) return;
       gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
       gl.uniform1f(timeLocation, (now - start) / 1000);
       if (mouseLocation) gl.uniform2f(mouseLocation, mx, my);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      requestAnimationFrame(render);
+      heroFrame = requestAnimationFrame(render);
     }
-    requestAnimationFrame(render);
+    const resumeHero = () => {
+      if (document.hidden || !heroVisible) { cancelAnimationFrame(heroFrame); heroFrame = null; }
+      else if (heroFrame === null) heroFrame = requestAnimationFrame(render);
+    };
+    document.addEventListener('visibilitychange', resumeHero);
+    if ('IntersectionObserver' in window) new IntersectionObserver(entries => {
+      heroVisible = entries[0].isIntersecting; resumeHero();
+    }).observe(canvas);
+    resumeHero();
   })();
   </script>
 
+  <script src="home-runtime.js"></script>
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -854,6 +869,12 @@
 
     const variants = ['liquid', 'vortex', 'glitch', 'cyber'];
     const requestedVariant = new URLSearchParams(window.location.search).get('intro');
+    // The optional cinematic entry never blocks normal navigation or no-JS content.
+    let introSeen = false;
+    try { introSeen = sessionStorage.getItem('ray-intro-seen') === 'true'; sessionStorage.setItem('ray-intro-seen', 'true'); } catch (_) {}
+    if (requestedVariant && !introSeen && !reduceMotion && !window.location.hash) {
+      document.body.classList.add('intro-active', 'intro-ready');
+    }
     const chosenVariant = variants.includes(requestedVariant)
       ? requestedVariant
       : variants[Math.floor(Math.random() * variants.length)];
@@ -863,7 +884,7 @@
     const animateFilter = (noiseId, mapId, duration = 2500) => {
       const noise = document.getElementById(noiseId);
       const map = document.getElementById(mapId);
-      if (!noise || !map || reduceMotion) return;
+      if (!noise || !map || reduceMotion || !document.body.classList.contains('intro-active')) return;
       const start = performance.now();
       const tick = (now) => {
         const progress = Math.min((now - start) / duration, 1);
@@ -899,21 +920,35 @@
     }, reduceMotion ? 80 : 2850);
 
     const enterMainSite = () => {
-      document.body.classList.add('intro-leaving');
-      window.setTimeout(() => {
-        document.body.classList.remove('intro-active', 'intro-ready', 'intro-leaving');
-        intro?.setAttribute('aria-hidden', 'true');
-        window.scrollTo(0, 0);
-      }, 900);
+      document.body.classList.remove('intro-active', 'intro-ready', 'intro-leaving');
+      intro?.setAttribute('aria-hidden', 'true');
+      if (!window.location.hash) window.scrollTo(0, 0);
     };
 
     enterButton?.addEventListener('click', enterMainSite);
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && document.body.classList.contains('intro-active')) enterMainSite();
+      if ((event.key === 'Enter' || event.key === 'Escape') && document.body.classList.contains('intro-active')) enterMainSite();
     });
 
     const authEndpoint = 'https://api.rayalex.cn';
     let authState = { user: null, daily: null, cantoneseDaily: null };
+    const identityScope = new HomeRuntime.Scope();
+    const authScope = new HomeRuntime.Scope();
+    const voiceScope = new HomeRuntime.Scope();
+    const subtitleScope = new HomeRuntime.Scope();
+    let renderedOwner = null;
+    let authRevision = 0;
+    let localSessionLocked = false;
+    try { localSessionLocked = localStorage.getItem('ray-auth-local-lock-v2') === 'true'; } catch (_) {}
+    const setSessionLock = locked => {
+      localSessionLocked = locked;
+      try { localStorage.setItem('ray-auth-local-lock-v2', String(locked)); } catch (_) {}
+    };
+    const authChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('ray-auth-state-v2') : null;
+    const announceAuthChange = () => {
+      authChannel?.postMessage('changed');
+      try { localStorage.setItem('ray-auth-state-v2', String(Date.now())); } catch (_) {}
+    };
 
     const memberSection = document.getElementById('member-access');
     const memberStatus = document.getElementById('member-status');
@@ -993,6 +1028,11 @@
         empty_upstream_content: 'MiMo 没有返回有效内容，请换个问法再试。',
         origin_not_allowed: '请求来源异常，请刷新页面后重试。',
         internal_error: '服务暂时不可用，请稍后再试。',
+        request_in_progress: '请求仍在处理中，请勿重复发送。',
+        request_already_completed: '此请求已处理，但回复未能送达；不会重复调用或扣费。',
+        upstream_result_unknown: '上游处理结果暂时无法确认，已停止自动重试。',
+        client_upgrade_required: '当前页面需要更新，请刷新后重试。',
+        owner_changed: '账号身份已经变化，已锁定私人界面，请重新登录。',
       };
       return map[error] || '连接失败，请稍后再试。';
     };
@@ -1009,27 +1049,32 @@
       window.setTimeout(() => document.getElementById('login-email')?.focus(), 450);
     };
     const authFetch = async (path, options = {}) => {
-      const response = await fetch(`${authEndpoint}${path}`, {
+      try { return await authScope.request(`${authEndpoint}${path}`, {
         credentials: 'include',
         ...options,
         headers: { 'content-type': 'application/json', ...(options.headers || {}) },
       });
-      const data = await response.json().catch(() => ({}));
-      return { response, data };
+      } catch (_) {
+        showAuthMessage('网络连接失败或请求超时，请重试。', 'error');
+        return { response: { ok: false }, data: { error: 'network_error' } };
+      }
     };
     const isAdminUserClient = () => authState.user?.role === 'admin';
+    const authButtonFetch = async (button, path, options) => {
+      try { return await authFetch(path, options); }
+      finally { if (button) button.disabled = false; }
+    };
     const showAdminMessage = (message, type = 'info') => {
       if (!adminMessage) return;
       adminMessage.textContent = message || '';
       adminMessage.dataset.type = type;
     };
     const adminFetch = async (path, options = {}) => {
-      const response = await fetch(`${authEndpoint}${path}`, {
+      const { response, data } = await identityScope.request(`${authEndpoint}${path}`, {
         credentials: 'include',
         ...options,
         headers: { 'content-type': 'application/json', ...(options.headers || {}) },
       });
-      const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) throw new Error(data.error || 'admin_request_failed');
       return data;
     };
@@ -1117,6 +1162,18 @@
       document.body.classList.remove('modal-open');
     };
     const renderAuthState = () => {
+      const owner = HomeRuntime.chatKey(authState.user);
+      if (owner !== renderedOwner) {
+        renderedOwner = owner;
+        identityScope.stop();
+        stopPrivateActivity();
+        closeChatModal(); closeCantoneseModal(); closeAdminModal();
+        conversations = []; activeChatId = null;
+        for (const node of [adminUsers, adminInvites, adminStats, adminInviteResult]) if (node) node.textContent = '';
+        if (chatInput) chatInput.value = '';
+        cantoneseEntries = []; renderCantoneseEntries();
+        loadConversations(); renderChat(); setChatBusy(false);
+      }
       const signedIn = Boolean(authState.user);
       document.body.classList.toggle('member-signed-in', signedIn);
       document.body.classList.toggle('admin-signed-in', signedIn && isAdminUserClient());
@@ -1139,8 +1196,11 @@
       if (note) note.textContent = signedIn ? `已登录：${authState.user.email}` : '请先在首页登录会员账号。';
     };
     const refreshAuth = async () => {
+      const revision = ++authRevision;
+      if (localSessionLocked) return authState;
       try {
-        const { response, data } = await authFetch('/auth/me', { method: 'GET', headers: {} });
+        const { response, data } = await authFetch('/v2/auth/me', { method: 'GET', headers: {} });
+        if (revision !== authRevision || localSessionLocked) return authState;
         if (response.ok && data.ok) authState = { user: data.user, daily: data.daily, cantoneseDaily: data.cantonese_daily || null };
         else authState = { user: null, daily: null, cantoneseDaily: null };
       } catch (_) {
@@ -1152,13 +1212,21 @@
 
     loginForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const button = loginForm.querySelector('button[type="submit"]');
+      if (button.disabled) return;
+      const revision = ++authRevision;
+      button.disabled = true;
       showAuthMessage('正在登录…');
       const payload = {
         email: document.getElementById('login-email')?.value.trim(),
         password: document.getElementById('login-password')?.value || '',
       };
-      const { response, data } = await authFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+      const { response, data } = await authButtonFetch(button, '/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+      button.disabled = false;
+      if (revision !== authRevision) return;
       if (response.ok && data.ok) {
+        setSessionLock(false);
+        announceAuthChange();
         authState = { user: data.user, daily: data.daily, cantoneseDaily: data.cantonese_daily || null };
         renderAuthState();
         showAuthMessage('登录成功，可以进入 Ray AI Chat。', 'success');
@@ -1192,6 +1260,7 @@
     };
 
     sendRegisterCodeButton?.addEventListener('click', async () => {
+      if (sendRegisterCodeButton.disabled) return;
       const inviteCode = document.getElementById('register-invite')?.value.trim();
       const email = document.getElementById('register-email')?.value.trim();
       if (!inviteCode || !email) {
@@ -1200,7 +1269,7 @@
       }
       sendRegisterCodeButton.disabled = true;
       sendRegisterCodeButton.textContent = '发送中…';
-      const { response, data } = await authFetch('/auth/register/send-code', {
+      const { response, data } = await authButtonFetch(sendRegisterCodeButton, '/auth/register/send-code', {
         method: 'POST',
         body: JSON.stringify({ invite_code: inviteCode, email }),
       });
@@ -1220,6 +1289,7 @@
         rate_limited: chatErrorMessage('rate_limited', data),
       };
       showAuthMessage(map[data.error] || '验证码发送失败，请稍后再试。', 'error');
+      if (data.error === 'rate_limited') startRegisterCodeCooldown(data.retry_after || data.resend_after || 60);
     });
 
     registerForm?.addEventListener('submit', async (event) => {
@@ -1231,14 +1301,22 @@
         return;
       }
       showAuthMessage('正在创建账号…');
+      const button = registerForm.querySelector('button[type="submit"]');
+      if (button.disabled) return;
+      const revision = ++authRevision;
+      button.disabled = true;
       const payload = {
         invite_code: document.getElementById('register-invite')?.value.trim(),
         email: document.getElementById('register-email')?.value.trim(),
         password,
         verification_code: document.getElementById('register-verification-code')?.value.trim(),
       };
-      const { response, data } = await authFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) });
+      const { response, data } = await authButtonFetch(button, '/auth/register', { method: 'POST', body: JSON.stringify(payload) });
+      button.disabled = false;
+      if (revision !== authRevision) return;
       if (response.ok && data.ok) {
+        setSessionLock(false);
+        announceAuthChange();
         authState = { user: data.user, daily: data.daily, cantoneseDaily: data.cantonese_daily || null };
         renderAuthState();
         showAuthMessage('注册成功，已登录，可以进入 Ray AI Chat。', 'success');
@@ -1260,13 +1338,15 @@
     });
 
     forgotButton?.addEventListener('click', async () => {
+      if (forgotButton.disabled) return;
       const email = document.getElementById('login-email')?.value.trim() || document.getElementById('register-email')?.value.trim();
       if (!email) {
         showAuthMessage('请先填写邮箱。', 'warn');
         return;
       }
       showAuthMessage('正在发送邮件…');
-      const { response, data } = await authFetch('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
+      forgotButton.disabled = true;
+      const { response, data } = await authButtonFetch(forgotButton, '/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
       if (response.ok && data.ok) {
         showAuthMessage(data.already_verified ? '邮箱已经验证，可以直接登录。' : '如果邮箱存在，验证邮件已发送。', 'success');
       } else {
@@ -1326,11 +1406,18 @@
     });
 
     logoutButton?.addEventListener('click', async () => {
-      await authFetch('/auth/logout', { method: 'POST', body: '{}' });
+      if (logoutButton.disabled) return;
+      logoutButton.disabled = true;
+      authRevision += 1; authScope.stop();
+      setSessionLock(true);
       authState = { user: null, daily: null, cantoneseDaily: null };
       closeAdminModal();
       renderAuthState();
-      showAuthMessage('已退出登录。', 'success');
+      announceAuthChange();
+      const { response, data } = await authButtonFetch(logoutButton, '/auth/logout', { method: 'POST', body: '{}' });
+      logoutButton.disabled = false;
+      showAuthMessage(response.ok && data.ok ? '已退出登录。' : '本机私人界面已锁定；网络异常，服务器会话尚未确认失效。请重试退出。', response.ok && data.ok ? 'success' : 'error');
+      if (!response.ok || !data.ok) { memberSession.hidden = false; logoutButton.hidden = false; }
     });
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -1360,7 +1447,6 @@
     const chatTypingStatus = document.getElementById('chat-typing-status');
     const chatEndpoint = 'https://api.rayalex.cn/chat';
     const cantoneseEndpoint = 'https://api.rayalex.cn/cantonese-transcribe';
-    const chatStoreKey = 'ray-mimo-chat-history-v1';
     const cantoneseModal = document.getElementById('cantonese-modal');
     const cantoneseOpeners = document.querySelectorAll('[data-open-translator]');
     const cantoneseClosers = document.querySelectorAll('[data-close-translator]');
@@ -1371,17 +1457,18 @@
     const cantoneseTranscripts = document.getElementById('cantonese-transcripts');
     let activeChatId = null;
     let conversations = [];
+    const volatileChats = new Map();
     let chatBusy = false;
     let pendingMediaItems = [];
     let mediaRecorder = null;
-    let voiceChunks = [];
+    let voiceStarting = false;
+    let subtitleStarting = false;
+    let subtitleQueue = null;
     let cantoneseRecorder = null;
     let cantoneseStream = null;
-    let cantoneseChunks = [];
     let cantoneseRunning = false;
     let cantoneseSegmentTimer = null;
     let cantoneseSegmentIndex = 0;
-    let cantoneseInFlight = 0;
     let cantoneseEntries = [];
 
     let maxAppViewportHeight = window.innerHeight || 0;
@@ -1411,13 +1498,27 @@
     window.visualViewport?.addEventListener('scroll', setAppViewportHeight);
 
     const loadConversations = () => {
-      try { conversations = JSON.parse(localStorage.getItem(chatStoreKey) || '[]'); }
-      catch (_) { conversations = []; }
-      if (!Array.isArray(conversations)) conversations = [];
-      if (!conversations.length) createConversation(false);
+      const key = HomeRuntime.chatKey(authState.user);
+      conversations = volatileChats.get(key) || HomeRuntime.readChats(localStorage, authState.user);
+      const warning = document.getElementById('chat-storage-warning');
+      if (warning) warning.hidden = !volatileChats.has(key);
+      if (!conversations.length && HomeRuntime.chatKey(authState.user)) createConversation(false);
       activeChatId = activeChatId || conversations[0]?.id;
     };
-    const saveConversations = () => localStorage.setItem(chatStoreKey, JSON.stringify(conversations.slice(0, 20)));
+    const saveConversations = () => {
+      const key = HomeRuntime.chatKey(authState.user);
+      if (!key) return;
+      const warning = document.getElementById('chat-storage-warning');
+      try {
+        localStorage.setItem(key, JSON.stringify(conversations.slice(0, 20)));
+        volatileChats.delete(key);
+        if (warning) warning.hidden = true;
+      } catch (_) {
+        volatileChats.set(key, conversations);
+        if (warning) warning.hidden = false;
+        showAuthMessage('聊天记录尚未保存到本机，存储空间可能不足。当前内容仍保留在页面。', 'error');
+      }
+    };
     const createConversation = (render = true) => {
       const item = { id: String(Date.now()), title: '新对话', messages: [], updatedAt: Date.now() };
       conversations.unshift(item);
@@ -1474,10 +1575,12 @@
       renderMediaPreview();
     };
     const readImageAttachment = async (file) => {
+      const valid = voiceScope.token();
       if (!file) return;
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('暂时只支持 PNG/JPEG/WebP 图片。');
       if (file.size > MAX_IMAGE_BYTES) throw new Error('图片不能超过 2MB，请压缩后再上传。');
       const dataUrl = await fileToDataUrl(file);
+      if (!valid()) return;
       addPendingMedia({ kind: 'image', label: '图片', name: file.name || 'image', sizeText: formatBytes(file.size), dataUrl });
     };
     const writeString = (view, offset, string) => {
@@ -1528,41 +1631,61 @@
       }
       return new Blob([view], { type: 'audio/wav' });
     };
-    const convertRecordingToWav = async (blob) => {
+    const convertRecordingToWav = async (blob, scope = voiceScope) => {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) throw new Error('当前浏览器不支持语音处理。');
       const context = new AudioContextClass();
+      const release = scope.own(() => { context.close?.().catch?.(() => {}); });
       try {
         const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer());
         return encodeWav(audioBuffer, 16000);
       } finally {
-        context.close?.();
+        release();
+        context.close?.().catch?.(() => {});
       }
     };
     const startVoiceRecording = async () => {
-      if (chatBusy || mediaRecorder) return;
+      if (chatBusy || mediaRecorder || voiceStarting) return;
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('当前浏览器不支持录音。');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      voiceChunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.addEventListener('dataavailable', (event) => { if (event.data?.size) voiceChunks.push(event.data); });
-      mediaRecorder.addEventListener('stop', async () => {
+      voiceScope.stop();
+      voiceStarting = true;
+      const valid = voiceScope.token();
+      let stream;
+      try { stream = await voiceScope.microphone(() => navigator.mediaDevices.getUserMedia({ audio: true })); }
+      catch (error) { if (valid()) throw error; else return; }
+      finally { if (valid()) voiceStarting = false; }
+      if (!stream || !valid()) return;
+      const chunks = [];
+      let recorder;
+      try { recorder = new MediaRecorder(stream); }
+      catch (error) { voiceScope.stop(); throw error; }
+      mediaRecorder = recorder;
+      voiceScope.own(() => { if (recorder.state !== 'inactive') recorder.stop(); });
+      recorder.addEventListener('dataavailable', (event) => { if (valid() && event.data?.size) chunks.push(event.data); });
+      recorder.addEventListener('stop', async () => {
         const tracks = stream.getTracks();
         tracks.forEach((track) => track.stop());
-        const recorderBlob = new Blob(voiceChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+        if (!valid()) return;
+        const recorderBlob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
         mediaRecorder = null;
         if (chatVoiceButton) chatVoiceButton.textContent = '语音';
         try {
           const wavBlob = await convertRecordingToWav(recorderBlob);
+          if (!valid()) return;
           if (wavBlob.size > MAX_AUDIO_BYTES) throw new Error('语音不能超过约 30 秒，请缩短后重录。');
-          addPendingMedia({ kind: 'audio', label: '语音', name: 'voice.wav', sizeText: formatBytes(wavBlob.size), dataUrl: await fileToDataUrl(wavBlob) });
+          const dataUrl = await fileToDataUrl(wavBlob);
+          if (valid()) addPendingMedia({ kind: 'audio', label: '语音', name: 'voice.wav', sizeText: formatBytes(wavBlob.size), dataUrl });
         } catch (error) {
+          if (!valid()) return;
           const current = activeConversation();
           if (current) current.messages.push({ role: 'assistant', content: error.message || '语音处理失败，请重试。' });
           renderChat();
         }
       });
-      mediaRecorder.start();
+      try { mediaRecorder.start(); }
+      catch (error) { voiceScope.stop(); mediaRecorder = null; throw error; }
+      const timer = setTimeout(() => { if (valid() && recorder.state !== 'inactive') recorder.stop(); }, 30000);
+      voiceScope.own(() => clearTimeout(timer));
       if (chatVoiceButton) chatVoiceButton.textContent = '停止';
     };
     const stopVoiceRecording = () => {
@@ -1638,35 +1761,44 @@
       }
       return cantoneseEntries[0];
     };
-    const processCantoneseSegment = async (blob, index) => {
-      if (!blob || blob.size < 800) return;
-      const entry = ensureCantoneseLiveEntry();
-      entry.label = `第 ${index} 次刷新中…`;
-      entry.status = 'pending';
-      renderCantoneseEntries();
-      cantoneseInFlight += 1;
-      setCantoneseStatus(`正在刷新实时字幕…${cantoneseInFlight ? ` ${cantoneseInFlight} 次处理中` : ''}`, 'info');
-      try {
-        const wavBlob = await convertRecordingToWav(blob);
-        if (wavBlob.size > MAX_AUDIO_BYTES) throw new Error('单段音频过长，请稍微放慢或重试。');
-        const audioDataUrl = await fileToDataUrl(wavBlob);
-        const response = await fetch(cantoneseEndpoint, {
+    const processCantoneseSegment = async (segment) => {
+        const valid = subtitleScope.token();
+        if (!segment.audioDataUrl) {
+          const wavBlob = await convertRecordingToWav(segment.blob, subtitleScope);
+          if (!valid()) throw new DOMException('Cancelled', 'AbortError');
+          if (wavBlob.size > MAX_AUDIO_BYTES) throw new Error('单段音频过长，请稍微放慢或重试。');
+          segment.audioDataUrl = await fileToDataUrl(wavBlob);
+          segment.duration = Math.round((wavBlob.size - 44) / 32);
+        }
+        if (!valid()) throw new DOMException('Cancelled', 'AbortError');
+        const { response, data } = await subtitleScope.request(cantoneseEndpoint, {
           method: 'POST',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            audio: audioDataUrl,
-            segment_ms: 1000,
+            audio: segment.audioDataUrl,
+            segment_ms: segment.duration,
+            requestId: segment.requestId,
+            ownerId: segment.ownerId,
             max_tokens: 700,
             temperature: 0.1,
           }),
         });
-        const data = await response.json();
-        if (data.cantonese_daily) authState.cantoneseDaily = data.cantonese_daily;
-        if (!response.ok || !data.ok) {
-          if (data.error === 'cantonese_daily_limit_exceeded') stopCantoneseTranslator();
+        if (data.error === 'owner_changed') {
+          lockOwnerMismatch();
           throw new Error(chatErrorMessage(data.error, data));
         }
+        if (!response.ok || !data.ok) {
+          const error = new Error(chatErrorMessage(data.error, data));
+          error.retryable = response.status === 429 && data.error === 'rate_limited';
+          error.retryAfter = Number(response.headers?.get('retry-after') || data.retry_after || 1) * 1000;
+          if (error.retryable) setCantoneseStatus('请求过快，正在退避重试；队列满时暂停采集。', 'warn');
+          throw error;
+        }
+        return data;
+    };
+    const commitCantoneseSegment = (data, { index }) => {
+        const entry = ensureCantoneseLiveEntry();
         authState.daily = data.daily || authState.daily;
         authState.cantoneseDaily = data.cantonese_daily || authState.cantoneseDaily;
         renderAuthState();
@@ -1677,52 +1809,84 @@
         entry.mandarin = mergeTranscriptText(entry.mandarin, parsed.mandarin);
         entry.label = parsed.cantonese || parsed.mandarin ? `已刷新 ${index} 次` : `第 ${index} 次未听清`;
         entry.status = 'done';
-      } catch (error) {
-        entry.label = `第 ${index} 次刷新失败`;
-        entry.status = entry.cantonese || entry.mandarin ? 'done' : 'error';
-        if (!entry.mandarin) entry.mandarin = error.message || '识别失败，请稍后重试。';
-      } finally {
-        cantoneseInFlight = Math.max(0, cantoneseInFlight - 1);
         renderCantoneseEntries();
-        if (cantoneseRunning) setCantoneseStatus(`正在实时传译…${cantoneseInFlight ? ` ${cantoneseInFlight} 次刷新处理中` : `每秒刷新同一个字幕块｜${formatCantoneseDailySummary(authState.cantoneseDaily)}`}`, 'success');
-        else setCantoneseStatus(entry.status === 'error' ? (entry.mandarin || '已停止。') : '已停止。可以复制或清空字幕。', entry.status === 'error' ? 'error' : 'info');
-      }
+        setCantoneseStatus(`正在实时传译…${formatCantoneseDailySummary(authState.cantoneseDaily)}`, 'success');
     };
     const startCantoneseSegment = () => {
-      if (!cantoneseRunning || !cantoneseStream || !window.MediaRecorder) return;
-      cantoneseChunks = [];
-      const recorder = new MediaRecorder(cantoneseStream);
+      if (!cantoneseRunning || !cantoneseStream || cantoneseRecorder || !window.MediaRecorder) return;
+      if (subtitleQueue.items.length >= subtitleQueue.capacity) {
+        setCantoneseStatus('字幕处理较慢，采集已暂停；已采集片段正在处理。', 'warn');
+        return;
+      }
+      const valid = subtitleScope.token();
+      const ownerId = authState.user?.id;
+      const chunks = [];
+      let recorder;
+      try { recorder = new MediaRecorder(cantoneseStream); }
+      catch (_) { stopCantoneseTranslator(); setCantoneseStatus('录音器启动失败，已停止采集。', 'error'); return; }
+      const release = subtitleScope.own(() => { if (recorder.state !== 'inactive') recorder.stop(); });
       cantoneseRecorder = recorder;
       const segmentIndex = ++cantoneseSegmentIndex;
-      recorder.addEventListener('dataavailable', (event) => { if (event.data?.size) cantoneseChunks.push(event.data); });
+      recorder.addEventListener('dataavailable', (event) => { if (valid() && event.data?.size) chunks.push(event.data); });
       recorder.addEventListener('stop', () => {
-        const blob = new Blob(cantoneseChunks, { type: recorder.mimeType || 'audio/webm' });
+        release();
+        if (!valid()) return;
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
         cantoneseRecorder = null;
-        if (cantoneseRunning) window.setTimeout(startCantoneseSegment, 80);
-        processCantoneseSegment(blob, segmentIndex);
+        if (!subtitleQueue.push({ blob, index: segmentIndex, requestId: crypto.randomUUID(), ownerId })) {
+          stopCantoneseTranslator();
+          setCantoneseStatus('字幕队列已满，已停止采集。', 'error');
+          return;
+        }
+        startCantoneseSegment();
       });
-      recorder.start();
+      try { recorder.start(); }
+      catch (_) { stopCantoneseTranslator(); setCantoneseStatus('录音器启动失败，已停止采集。', 'error'); return; }
       cantoneseSegmentTimer = window.setTimeout(() => {
         if (recorder.state !== 'inactive') recorder.stop();
       }, 1000);
     };
     const stopCantoneseTranslator = () => {
       cantoneseRunning = false;
+      subtitleStarting = false;
+      subtitleScope.stop();
+      subtitleQueue?.stop(); subtitleQueue = null;
       window.clearTimeout(cantoneseSegmentTimer);
       cantoneseSegmentTimer = null;
       if (cantoneseRecorder && cantoneseRecorder.state !== 'inactive') cantoneseRecorder.stop();
       cantoneseStream?.getTracks().forEach((track) => track.stop());
       cantoneseStream = null;
+      cantoneseRecorder = null;
       if (cantoneseStart) cantoneseStart.textContent = '开始传译';
       setCantoneseStatus('已停止。可以复制或清空字幕。', 'info');
     };
     const startCantoneseTranslator = async () => {
-      if (cantoneseRunning) return stopCantoneseTranslator();
+      if (cantoneseRunning || subtitleStarting) return stopCantoneseTranslator();
+      subtitleStarting = true;
+      const valid = subtitleScope.token();
       await refreshAuth();
+      if (!valid()) return;
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号，再使用粤语实时传译。');
       if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证，再使用粤语实时传译。');
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('当前浏览器不支持实时录音。');
-      cantoneseStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream;
+      try { stream = await subtitleScope.microphone(() => navigator.mediaDevices.getUserMedia({ audio: true })); }
+      catch (error) { if (valid()) throw error; else return; }
+      finally { if (valid()) subtitleStarting = false; }
+      if (!valid() || !stream) return;
+      cantoneseStream = stream;
+      subtitleQueue = new HomeRuntime.OrderedQueue({
+        work: processCantoneseSegment, commit: commitCantoneseSegment,
+        onCapacity: () => startCantoneseSegment(),
+        onError: (error, segment) => {
+          stopCantoneseTranslator();
+          setCantoneseStatus(`第 ${segment.index} 段失败，已停止采集：${error.message || '网络异常，请重试。'}`, 'error');
+        },
+        delay: ms => new Promise(resolve => {
+          const timer = setTimeout(() => { release(); resolve(); }, ms);
+          const release = subtitleScope.own(() => { clearTimeout(timer); resolve(); });
+        }),
+      });
       cantoneseRunning = true;
       cantoneseSegmentIndex = 0;
       cantoneseEntries = [{ id: 'live', index: 'live', label: '等待语音…', status: 'pending', cantonese: '', mandarin: '' }];
@@ -1752,9 +1916,10 @@
     cantoneseClosers.forEach((button) => button.addEventListener('click', closeCantoneseModal));
     cantoneseStart?.addEventListener('click', async () => {
       try { await startCantoneseTranslator(); }
-      catch (error) { setCantoneseStatus(error.message || '录音启动失败，请检查麦克风权限。', 'error'); }
+      catch (error) { stopCantoneseTranslator(); setCantoneseStatus(error.message || '录音启动失败，请检查麦克风权限。', 'error'); }
     });
     cantoneseClear?.addEventListener('click', () => {
+      stopCantoneseTranslator();
       cantoneseEntries = [];
       renderCantoneseEntries();
       setCantoneseStatus(cantoneseRunning ? `正在实时传译…每秒刷新同一个字幕块。${formatCantoneseDailySummary(authState.cantoneseDaily)}` : '字幕已清空。', 'info');
@@ -1789,12 +1954,17 @@
         </button>
       `).join('');
       chatHistory.querySelectorAll('[data-chat-id]').forEach((button) => {
-        button.addEventListener('click', () => { activeChatId = button.getAttribute('data-chat-id'); renderChat(); });
+        button.addEventListener('click', () => {
+          if (chatBusy) return;
+          stopPrivateActivity();
+          activeChatId = button.getAttribute('data-chat-id'); renderChat();
+        });
       });
     };
     const renderMessages = () => {
       const current = activeConversation();
-      if (!chatMessages || !current) return;
+      if (!chatMessages) return;
+      if (!current) { chatMessages.textContent = ''; return; }
       if (!current.messages.length) {
         chatMessages.innerHTML = '<div class="chat-empty"><span>Ask anything</span><p>这里会保留当前浏览器里的历史对话。</p></div>';
         return;
@@ -1830,6 +2000,7 @@
     const clearCurrentConversation = () => {
       const current = activeConversation();
       if (!current || chatBusy) return;
+      stopPrivateActivity();
       current.messages = [];
       clearPendingMedia();
       current.title = '新对话';
@@ -1839,7 +2010,9 @@
       chatInput?.focus();
     };
     const closeChatModal = () => {
+      stopPrivateActivity();
       if (!chatModal) return;
+      chatModal.classList.remove('history-open');
       chatModal.hidden = true;
       document.body.classList.remove('modal-open', 'keyboard-open');
     };
@@ -1866,6 +2039,7 @@
     chatNew?.addEventListener('click', () => {
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
       if (chatBusy) return;
+      stopPrivateActivity();
       createConversation(true);
     });
     chatClear?.addEventListener('click', () => {
@@ -1913,6 +2087,7 @@
       if (chatBusy) return;
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
       if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证。');
+      const ownerId = authState.user.id;
       const text = chatInput?.value.trim();
       const mediaToSend = [...pendingMediaItems];
       const current = activeConversation();
@@ -1926,29 +2101,78 @@
       resizeChatInput();
       renderChat();
       setChatBusy(true);
+      const valid = identityScope.token();
+      const requestId = crypto.randomUUID();
+      saveConversations();
       try {
         const history = buildChatHistory(current.messages, mediaToSend);
-        const response = await fetch(chatEndpoint, {
+        const { response, data } = await identityScope.request(chatEndpoint, {
           method: 'POST',
           credentials: 'include',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ messages: history, max_tokens: 1536 }),
+          body: JSON.stringify({ messages: history, max_tokens: 1536, requestId, ownerId }),
         });
-        const data = await response.json();
+        if (!valid()) return;
+        if (data.error === 'owner_changed') { lockOwnerMismatch(); return; }
         if (!response.ok || !data.ok) throw new Error(chatErrorMessage(data.error, data));
         authState.daily = data.daily || authState.daily;
         renderAuthState();
         current.messages.push({ role: 'assistant', content: data.reply || '没有收到有效回复。' });
       } catch (error) {
+        if (!valid()) return;
         const message = error.message || '连接失败，请稍后再试。';
         current.messages.push({ role: 'assistant', content: message });
-        if (message.includes('登录') || message.includes('验证')) window.setTimeout(() => scrollToMemberAccess(message), 450);
+        if (message.includes('登录') || message.includes('验证')) window.setTimeout(() => { if (valid()) scrollToMemberAccess(message); }, 450);
       } finally {
+        if (!valid()) return;
         current.updatedAt = Date.now();
         saveConversations();
         renderChat();
         setChatBusy(false);
       }
+    });
+    function stopPrivateActivity() {
+      voiceScope.stop(); voiceStarting = false; mediaRecorder = null;
+      if (chatVoiceButton) chatVoiceButton.textContent = '语音';
+      clearPendingMedia();
+      stopCantoneseTranslator();
+    }
+    function lockOwnerMismatch() {
+      authRevision += 1; authScope.stop(); identityScope.stop();
+      setSessionLock(true);
+      authState = { user: null, daily: null, cantoneseDaily: null };
+      renderAuthState();
+      announceAuthChange();
+      showAuthMessage(chatErrorMessage('owner_changed'), 'error');
+    }
+    const lockForIdentityChange = () => {
+      authRevision += 1; authScope.stop(); identityScope.stop();
+      authState = { user: null, daily: null, cantoneseDaily: null };
+      renderAuthState();
+      try { localSessionLocked = localStorage.getItem('ray-auth-local-lock-v2') === 'true'; } catch (_) {}
+      refreshAuth();
+    };
+    authChannel?.addEventListener('message', lockForIdentityChange);
+    window.addEventListener('storage', event => { if (event.key === 'ray-auth-state-v2') lockForIdentityChange(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPrivateActivity(); });
+    window.addEventListener('pagehide', stopPrivateActivity);
+    HomeRuntime.manageModals(document, modal => {
+      if (modal === chatModal && chatModal.classList.contains('history-open')) {
+        chatModal.classList.remove('history-open');
+        document.getElementById('chat-history-toggle').setAttribute('aria-expanded', 'false');
+        document.getElementById('chat-history-toggle').focus();
+      } else if (modal === chatModal) closeChatModal();
+      else if (modal === cantoneseModal) closeCantoneseModal();
+      else if (modal === adminModal) closeAdminModal();
+    });
+    document.getElementById('chat-history-toggle')?.addEventListener('click', event => {
+      const open = chatModal.classList.toggle('history-open');
+      event.currentTarget.setAttribute('aria-expanded', String(open));
+    });
+    chatHistory?.addEventListener('click', () => {
+      chatModal.classList.remove('history-open');
+      document.getElementById('chat-history-toggle').setAttribute('aria-expanded', 'false');
+      if (window.matchMedia('(max-width: 780px)').matches) document.getElementById('chat-history-toggle').focus();
     });
   </script>
 </body>

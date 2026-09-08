@@ -30,6 +30,7 @@
       this.started = false;
       this.paused = false;
       this.touchStart = null;
+      this.dragPointer = null;
       this.celebrated = {};
     }
 
@@ -48,12 +49,26 @@
       this.boardEl = this.host.querySelector(".merge-board");
       for (let i = 0; i < 16; i += 1) this.boardEl.appendChild(UI.el("div", "tile"));
       UI.bindNoScroll(this.boardEl);
-      this.boardEl.addEventListener("touchstart", (ev) => this.onTouchStart(ev), { passive: false });
-      this.boardEl.addEventListener("touchmove", (ev) => ev.preventDefault(), { passive: false });
-      this.boardEl.addEventListener("touchend", (ev) => this.onTouchEnd(ev), { passive: false });
+      this.boardEl.tabIndex = 0;
       this.boardEl.addEventListener("pointerdown", (ev) => {
-        if (ev.pointerType === "mouse") return;
+        if (!this.started || this.paused) return;
+        ev.preventDefault();
+        this.boardEl.focus({ preventScroll: true });
+        this.dragPointer = ev.pointerId;
         this.touchStart = { x: ev.clientX, y: ev.clientY };
+        this.boardEl.setPointerCapture(ev.pointerId);
+      });
+      this.boardEl.addEventListener('pointerup', ev => {
+        if (ev.pointerId !== this.dragPointer || !this.touchStart) return;
+        ev.preventDefault();
+        this.handleSwipe(ev.clientX - this.touchStart.x, ev.clientY - this.touchStart.y);
+        this.touchStart = null; this.dragPointer = null;
+      });
+      this.boardEl.addEventListener('pointercancel', () => { this.touchStart = null; this.dragPointer = null; });
+      this.boardEl.addEventListener('keydown', ev => {
+        const direction = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key];
+        if (!direction || !this.started || this.paused) return;
+        ev.preventDefault(); this.move(direction);
       });
       this.updateStatsHud();
     }
@@ -221,8 +236,7 @@
         }
       });
       if (newUnlock) {
-        stats.merge2048.unlocked = Array.from(unlocked).sort((a, b) => a - b);
-        Storage.saveStats(stats);
+        Storage.updateBest('merge2048', { unlocked: Array.from(unlocked).sort((a, b) => a - b) });
       }
       const top = Math.max.apply(null, this.board.flat());
       if (top >= 5 && !this.celebrated.hermes) {
