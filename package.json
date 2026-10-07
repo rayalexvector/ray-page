@@ -9,7 +9,7 @@
     "test:browser": "node tools/playwright.cjs test"
   },
   "devDependencies": {
-    "fake-indexeddb": "6.2.4",
+    "fake-indexeddb": "6.2.5",
     "playwright": "1.63.0"
   }
 }
