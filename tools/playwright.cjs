@@ -55,6 +55,7 @@ function main() {
     run(['tests/home-browser.cjs']);
     run(['tests/game-browser-smoke.cjs']);
     run(['tests/save-hardening-browser.cjs']);
+    run(['tests/arcade-modal-browser.cjs']);
   }
 }
 
