@@ -30,8 +30,10 @@ function fixture() {
 test('rapid Frontier pause/resume retains exactly one animation chain', () => {
   const f = fixture();
   f.game.loop(100);
+  const initial = f.updates;
   for (let i = 0; i < 20; i++) { f.game.pause(); f.game.resume(); }
   assert.equal(f.pending.size, 1);
+  assert.equal(f.updates, initial, 'Resume defers work to the next animation frame');
   const before = f.updates;
   f.frame();
   assert.equal(f.updates - before, 1);

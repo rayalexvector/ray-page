@@ -149,12 +149,14 @@
       const work = async () => {
         const result = await transaction(key, fresh(this.initial), edit);
         if (epoch === this.epoch) {
-          if (['pulled', 'resolved', 'imported'].includes(reason) && !equal(this.memory, result.record.payload)) {
+          const recovering = ['resolved', 'imported'].includes(reason);
+          const replacesMemory = version === this.optimisticVersion && (!this.failed || recovering);
+          if (replacesMemory && (reason === 'pulled' || recovering) && !equal(this.memory, result.record.payload)) {
             window.dispatchEvent(new CustomEvent('ray-save-owner-changing', { detail: { appId: this.appId, reason } }));
           }
           this.record = result.record;
-          if (['resolved', 'imported'].includes(reason)) { this.failed = false; this.volatile.delete(key); }
-          if (!this.failed && version === this.optimisticVersion) this.memory = copy(result.record.payload);
+          if (recovering) { this.failed = false; this.volatile.delete(key); }
+          if (replacesMemory) this.memory = copy(result.record.payload);
           this.persisted = !this.failed;
           this.notify(reason);
         }
