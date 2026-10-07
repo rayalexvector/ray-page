@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="image" href="assets/ray-eye-portrait.webp?v=cinematic-camera-drift" type="image/webp" fetchpriority="high" />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=rev30-letter-spacing-open" />
+  <link rel="stylesheet" href="styles.css?v=rev31-ai-maintenance" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -451,6 +451,17 @@
           <div id="admin-invites" class="admin-table" aria-label="邀请码列表"></div>
         </section>
       </div>
+    </section>
+  </div>
+
+  <div id="maintenance-modal" class="maintenance-modal" role="dialog" aria-modal="true" aria-labelledby="maintenance-title" aria-describedby="maintenance-description" hidden>
+    <div class="maintenance-backdrop" data-close-maintenance></div>
+    <section class="maintenance-panel">
+      <button class="maintenance-close" type="button" data-close-maintenance aria-label="关闭维护提示">×</button>
+      <p class="eyebrow">RAY AI</p>
+      <h2 id="maintenance-title">维护中</h2>
+      <p id="maintenance-description">AI 服务正在维护，待新模型接入后恢复。</p>
+      <button class="button secondary" type="button" data-close-maintenance>知道了</button>
     </section>
   </div>
 
@@ -930,6 +941,30 @@
       if ((event.key === 'Enter' || event.key === 'Escape') && document.body.classList.contains('intro-active')) enterMainSite();
     });
 
+    const AI_MAINTENANCE = true;
+    const maintenanceModal = document.getElementById('maintenance-modal');
+    const closeMaintenanceModal = () => {
+      if (maintenanceModal) maintenanceModal.hidden = true;
+      document.body.classList.remove('modal-open');
+    };
+    const openMaintenanceModal = (opener = document.activeElement) => {
+      closeChatModal(); closeCantoneseModal(); closeAdminModal();
+      opener?.focus?.({ preventScroll: true });
+      if (maintenanceModal) maintenanceModal.hidden = false;
+      document.body.classList.add('modal-open');
+    };
+    document.querySelectorAll('[data-close-maintenance]').forEach(button => {
+      button.addEventListener('click', closeMaintenanceModal);
+    });
+    // Intercept clicks before native required-field validation or credential submission.
+    document.querySelectorAll('#member-tab-login, #login-form button, #register-form button').forEach(button => {
+      button.addEventListener('click', event => {
+        if (!AI_MAINTENANCE) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        openMaintenanceModal(event.currentTarget);
+      }, true);
+    });
+
     const authEndpoint = 'https://api.rayalex.cn';
     let authState = { user: null, daily: null, cantoneseDaily: null };
     const identityScope = new HomeRuntime.Scope();
@@ -1016,6 +1051,7 @@
         cantonese_daily_limit_exceeded: '今日粤语实时传译 30 秒额度已用完。',
         rate_limited: data.retry_after ? `操作太频繁，请 ${data.retry_after} 秒后再试。` : '操作太频繁，请稍后再试。',
         channel_paused: 'MiMo 通道已暂停。',
+        service_maintenance: '维护中，待新模型接入后恢复。',
         payload_too_large: '消息或媒体太大，请缩小后再发送。',
         unsupported_media_type: '暂时只支持 PNG/JPEG/WebP 图片和 WAV 语音。',
         media_too_large: '媒体文件太大，请压缩后再发送。',
@@ -1212,6 +1248,7 @@
 
     loginForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (AI_MAINTENANCE) return openMaintenanceModal();
       const button = loginForm.querySelector('button[type="submit"]');
       if (button.disabled) return;
       const revision = ++authRevision;
@@ -1260,6 +1297,7 @@
     };
 
     sendRegisterCodeButton?.addEventListener('click', async () => {
+      if (AI_MAINTENANCE) return openMaintenanceModal();
       if (sendRegisterCodeButton.disabled) return;
       const inviteCode = document.getElementById('register-invite')?.value.trim();
       const email = document.getElementById('register-email')?.value.trim();
@@ -1294,6 +1332,7 @@
 
     registerForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (AI_MAINTENANCE) return openMaintenanceModal();
       const password = document.getElementById('register-password')?.value || '';
       const confirm = document.getElementById('register-password-confirm')?.value || '';
       if (password !== confirm) {
@@ -1645,6 +1684,7 @@
       }
     };
     const startVoiceRecording = async () => {
+      if (AI_MAINTENANCE) return openMaintenanceModal();
       if (chatBusy || mediaRecorder || voiceStarting) return;
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('当前浏览器不支持录音。');
       voiceScope.stop();
@@ -1762,6 +1802,7 @@
       return cantoneseEntries[0];
     };
     const processCantoneseSegment = async (segment) => {
+      if (AI_MAINTENANCE) throw Object.assign(new Error('维护中'), { retryable: false });
         const valid = subtitleScope.token();
         if (!segment.audioDataUrl) {
           const wavBlob = await convertRecordingToWav(segment.blob, subtitleScope);
@@ -1861,6 +1902,7 @@
       setCantoneseStatus('已停止。可以复制或清空字幕。', 'info');
     };
     const startCantoneseTranslator = async () => {
+      if (AI_MAINTENANCE) return openMaintenanceModal();
       if (cantoneseRunning || subtitleStarting) return stopCantoneseTranslator();
       subtitleStarting = true;
       const valid = subtitleScope.token();
@@ -1895,7 +1937,8 @@
       setCantoneseStatus(`正在实时传译…每秒刷新同一个字幕块。${formatCantoneseDailySummary(authState.cantoneseDaily)}`, 'success');
       startCantoneseSegment();
     };
-    const openCantoneseModal = async () => {
+    const openCantoneseModal = async (event) => {
+      if (AI_MAINTENANCE) return openMaintenanceModal(event?.currentTarget);
       await refreshAuth();
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号，再使用粤语实时传译。');
       if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证，再使用粤语实时传译。');
@@ -2016,7 +2059,8 @@
       chatModal.hidden = true;
       document.body.classList.remove('modal-open', 'keyboard-open');
     };
-    const openChatModal = async () => {
+    const openChatModal = async (event) => {
+      if (AI_MAINTENANCE) return openMaintenanceModal(event?.currentTarget);
       await refreshAuth();
       if (!authState.user) {
         scrollToMemberAccess('请先登录或注册会员账号，再进入 Ray AI Chat。');
@@ -2084,6 +2128,7 @@
 
     chatForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (AI_MAINTENANCE) return openMaintenanceModal();
       if (chatBusy) return;
       if (!authState.user) return scrollToMemberAccess('请先登录或注册会员账号。');
       if (!authState.user.email_verified) return scrollToMemberAccess('请先完成邮箱验证。');
@@ -2164,6 +2209,7 @@
       } else if (modal === chatModal) closeChatModal();
       else if (modal === cantoneseModal) closeCantoneseModal();
       else if (modal === adminModal) closeAdminModal();
+      else if (modal === maintenanceModal) closeMaintenanceModal();
     });
     document.getElementById('chat-history-toggle')?.addEventListener('click', event => {
       const open = chatModal.classList.toggle('history-open');

@@ -15,6 +15,13 @@ const server = http.createServer((request, response) => {
   fs.readFile(file, (error, data) => {
     if (error) { response.writeHead(404).end(); return; }
     const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
+    // This isolated suite retains dormant auth/media regression coverage. Production
+    // maintenance behavior is tested separately against the unmodified shipped HTML.
+    if (file === path.join(root, 'index.html')) {
+      const source = data.toString();
+      assert.ok(source.includes('const AI_MAINTENANCE = true;'));
+      data = Buffer.from(source.replace('const AI_MAINTENANCE = true;', 'const AI_MAINTENANCE = false;'));
+    }
     response.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }); response.end(data);
   });
 });

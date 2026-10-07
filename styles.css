@@ -642,6 +642,40 @@ h3 { font-size: 24px; line-height: 1.25; letter-spacing: -.96px; font-weight: 60
   word-break: break-word;
 }
 
+.maintenance-modal[hidden] { display: none; }
+.maintenance-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.maintenance-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .6); }
+.maintenance-panel {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 32px 24px 24px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+.maintenance-panel h2 { margin: 12px 0; font-size: 28px; letter-spacing: 0; }
+.maintenance-panel > p:not(.eyebrow) { margin-bottom: 24px; color: var(--muted); line-height: 1.7; }
+.maintenance-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 26px;
+  cursor: pointer;
+}
 .cantonese-modal[hidden] { display: none; }
 .cantonese-modal {
   position: fixed;
