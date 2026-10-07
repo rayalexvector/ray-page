@@ -236,6 +236,8 @@ async function frontier(page, origin, label) {
   await page.goto(origin + '/arcade/frontier/'); await ready(page, 'arcade');
   const menuFrames = await page.evaluate(() => {
     const app = window.RayFrontierApp;
+    window.__frontierOwnerEvents = [];
+    window.addEventListener('ray-save-owner-changing', event => window.__frontierOwnerEvents.push(event.detail));
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });
     document.dispatchEvent(new Event('visibilitychange'));
     const stopped = app.idleRaf === 0 && app.raf === 0;
@@ -244,7 +246,12 @@ async function frontier(page, origin, label) {
     return { stopped, resumed: app.idleRaf !== 0 };
   });
   assert.deepEqual(menuFrames, { stopped: true, resumed: true });
-  await page.locator('[data-start]').click(); await page.waitForFunction(() => window.RayFrontierApp.state === 'playing');
+  await page.locator('[data-start]').click();
+  await page.waitForFunction(() => window.RayFrontierApp.state === 'playing').catch(async error => {
+    console.error(await page.evaluate(() => ({ state: window.RayFrontierApp.state, hidden: document.hidden,
+      ownerEvents: window.__frontierOwnerEvents, booting: !!window.RayFrontierApp.cloudSave.booting })));
+    throw error;
+  });
   const updatesPerFrame = await page.evaluate(() => new Promise(resolve => {
     const app = window.RayFrontierApp, update = app.update;
     let updates = 0;

@@ -675,7 +675,7 @@ import * as THREE from "../vendor/three.module.js";
       this.stopAnimation();
       this.state = "playing";
       this.last = performance.now();
-      this.loop(this.last);
+      this.raf = requestAnimationFrame((time) => this.loop(time));
     }
 
     stopAnimation() {
