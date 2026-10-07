@@ -234,11 +234,59 @@ async function merge2048(page, origin, label) {
 }
 async function frontier(page, origin, label) {
   await page.goto(origin + '/arcade/frontier/'); await ready(page, 'arcade');
-  await page.locator('[data-start]').click(); await page.waitForFunction(() => window.RayFrontierApp.state === 'playing');
+  const menuFrames = await page.evaluate(() => {
+    const app = window.RayFrontierApp;
+    window.__frontierOwnerEvents = [];
+    window.addEventListener('ray-save-owner-changing', event => window.__frontierOwnerEvents.push(event.detail));
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    const stopped = app.idleRaf === 0 && app.raf === 0;
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+    return { stopped, resumed: app.idleRaf !== 0 };
+  });
+  assert.deepEqual(menuFrames, { stopped: true, resumed: true });
+  await page.locator('[data-start]').click();
+  await page.waitForFunction(() => window.RayFrontierApp.state === 'playing').catch(async error => {
+    console.error(await page.evaluate(() => ({ state: window.RayFrontierApp.state, hidden: document.hidden,
+      ownerEvents: window.__frontierOwnerEvents, booting: !!window.RayFrontierApp.cloudSave.booting })));
+    throw error;
+  });
+  const updatesPerFrame = await page.evaluate(() => new Promise(resolve => {
+    const app = window.RayFrontierApp, update = app.update;
+    let updates = 0;
+    app.update = function(dt) { updates++; return update.call(this, dt); };
+    for (let i = 0; i < 20; i++) { app.pause(); app.resume(); }
+    updates = 0;
+    requestAnimationFrame(() => { app.update = update; resolve(updates); });
+  }));
+  assert.equal(updatesPerFrame, 1, 'Rapid pause/resume must not multiply gameplay updates');
+  const pausedTime = await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    return window.RayFrontierApp.time;
+  });
+  await page.waitForTimeout(120);
+  assert.deepEqual(await page.evaluate(() => {
+    const app = window.RayFrontierApp;
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
+    return { state: app.state, time: app.time, raf: app.raf };
+  }), { state: 'paused', time: pausedTime, raf: 0 });
+  await page.locator('[data-pause]').click();
   const before = await page.evaluate(() => ({ x: window.RayFrontierApp.player.pos.x, z: window.RayFrontierApp.player.pos.z }));
   const size = page.viewportSize();
-  await page.mouse.move(size.width * .25, size.height * .65); await page.mouse.down();
-  await page.mouse.move(size.width * .4, size.height * .55, { steps: 6 }); await page.waitForTimeout(400); await page.mouse.up();
+  if (label === 'mobile') {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: size.width * .25, y: size.height * .65 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: size.width * .4, y: size.height * .55 }] });
+    await page.waitForTimeout(400);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+  } else {
+    await page.mouse.move(size.width * .25, size.height * .65); await page.mouse.down();
+    await page.mouse.move(size.width * .4, size.height * .55, { steps: 6 }); await page.waitForTimeout(400); await page.mouse.up();
+  }
   const after = await page.evaluate(() => ({ x: window.RayFrontierApp.player.pos.x, z: window.RayFrontierApp.player.pos.z }));
   assert.ok(Math.hypot(before.x - after.x, before.z - after.z) > .1);
   await page.waitForFunction(() => window.RayFrontierApp.player.score > 0, null, { timeout: 15000 });
@@ -251,7 +299,7 @@ async function frontier(page, origin, label) {
   await page.locator('[data-restart]').click(); assert.equal(await page.evaluate(() => window.RayFrontierApp.state), 'playing');
   await page.reload(); await ready(page, 'arcade');
   assert.ok(await page.evaluate(score => window.RayArcade.Storage.getStats().frontier.bestScore >= score, score));
-  return { score, pixels, persisted: true };
+  return { score, pixels, persisted: true, updatesPerFrame, menuFrames, backgroundPaused: true, input: label === 'mobile' ? 'touch' : 'mouse' };
 }
 
 async function workerUpgrade(browser, origin) {

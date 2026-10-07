@@ -121,6 +121,7 @@ import * as THREE from "../vendor/three.module.js";
       this.state = "menu";
       this.last = 0;
       this.raf = 0;
+      this.idleRaf = 0;
       this.time = 0;
       this.cloudSave = null;
       this.activePointer = null;
@@ -155,9 +156,13 @@ import * as THREE from "../vendor/three.module.js";
       this.resize();
       window.addEventListener("resize", () => this.resize());
       document.addEventListener("visibilitychange", () => {
-        if (document.hidden && this.state === "playing") this.pause();
+        if (document.hidden) {
+          this.pause();
+          this.stopAnimation();
+        } else if (this.state === "menu") this.drawIdle();
       });
-      window.addEventListener("pagehide", () => this.pause());
+      window.addEventListener("pagehide", () => { this.pause(); this.stopAnimation(); });
+      window.addEventListener("pageshow", () => { if (this.state === "menu") this.drawIdle(); });
       this.loading.classList.add("is-hidden");
       this.drawIdle();
     }
@@ -644,6 +649,7 @@ import * as THREE from "../vendor/three.module.js";
 
     start() {
       if (!this.scene) return;
+      this.stopAnimation();
       this.result.hidden = true;
       this.result.classList.remove("is-open");
       this.menu.classList.remove("is-open");
@@ -659,32 +665,46 @@ import * as THREE from "../vendor/three.module.js";
     pause() {
       if (this.state !== "playing") return;
       this.state = "paused";
+      this.stopAnimation();
       this.releaseStick();
       UI && UI.toast && UI.toast("Ray Frontier 已暂停");
     }
 
     resume() {
-      if (this.state !== "paused") return;
+      if (this.state !== "paused" || document.hidden) return;
+      this.stopAnimation();
       this.state = "playing";
       this.last = performance.now();
-      this.loop(this.last);
+      this.raf = requestAnimationFrame((time) => this.loop(time));
+    }
+
+    stopAnimation() {
+      cancelAnimationFrame(this.raf);
+      cancelAnimationFrame(this.idleRaf);
+      this.raf = this.idleRaf = 0;
     }
 
     drawIdle() {
+      cancelAnimationFrame(this.idleRaf);
+      this.idleRaf = 0;
+      if (this.state !== "menu" || document.hidden) return;
       this.nodes.player.rotation.y += .01;
       this.camera.position.lerp(new THREE.Vector3(0, 19.4, 22.4), .05);
       this.camera.lookAt(0, 1.05, -5.8);
       this.renderer.render(this.scene, this.camera);
-      if (this.state === "menu") requestAnimationFrame(() => this.drawIdle());
+      this.idleRaf = requestAnimationFrame(() => this.drawIdle());
     }
 
     loop(now) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+      if (document.hidden) { this.pause(); return; }
       if (this.state !== "playing") return;
       const dt = Math.min(.033, Math.max(.001, (now - this.last) / 1000));
       this.last = now;
       this.update(dt);
       this.render();
-      this.raf = requestAnimationFrame((t) => this.loop(t));
+      if (this.state === "playing" && !document.hidden) this.raf = requestAnimationFrame((t) => this.loop(t));
     }
 
     resize() {
@@ -1114,7 +1134,7 @@ import * as THREE from "../vendor/three.module.js";
       p.xpNext = Math.floor(p.xpNext * 1.26 + 12);
       p.hp = Math.min(p.maxHp, p.hp + 18);
       this.state = "levelup";
-      cancelAnimationFrame(this.raf);
+      this.stopAnimation();
       this.showUpgrades();
       pulse("success");
     }
@@ -1133,11 +1153,11 @@ import * as THREE from "../vendor/three.module.js";
         button.className = "upgrade-card";
         button.innerHTML = `<strong>${up.name}</strong><span>${up.text}</span>`;
         button.addEventListener("click", () => {
+          if (this.state !== "levelup") return;
           up.apply(this);
           this.upgrades.hidden = true;
-          this.state = "playing";
-          this.last = performance.now();
-          this.loop(this.last);
+          this.state = "paused";
+          this.resume();
           UI && UI.toast && UI.toast(up.name);
         });
         this.upgradeGrid.appendChild(button);
@@ -1310,7 +1330,7 @@ import * as THREE from "../vendor/three.module.js";
     gameOver() {
       if (this.state === "gameover") return;
       this.state = "gameover";
-      cancelAnimationFrame(this.raf);
+      this.stopAnimation();
       this.releaseStick();
       const p = this.player;
       Storage && Storage.updateBest && Storage.updateBest("frontier", {

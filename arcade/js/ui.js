@@ -5,6 +5,64 @@
   let audioCtx = null;
   let toastTimer = 0;
   let iosSwitchHaptic = null;
+  let modalId = 0;
+  const modalStack = [];
+  const inertState = new Map();
+  let modalObserver = null;
+  let lastPointerOpener = null;
+  let pointerTime = 0;
+
+  // iOS does not always focus a button on tap. Remember the actual opener.
+  document.addEventListener("pointerdown", (event) => {
+    lastPointerOpener = event.target.closest("button, a[href], [role='button'], [tabindex]");
+    pointerTime = Date.now();
+  }, true);
+
+  function modalFocusables(card) {
+    return $all("button, a[href], input, select, textarea, [tabindex]", card)
+      .filter((node) => !node.disabled && node.tabIndex >= 0 && !node.closest("[inert]") && node.getClientRects().length);
+  }
+
+  function syncModalBackground() {
+    const top = modalStack[modalStack.length - 1];
+    for (const node of document.body.children) {
+      if (!inertState.has(node)) inertState.set(node, node.inert);
+      node.inert = top ? node !== top.backdrop : inertState.get(node);
+    }
+    if (!top) {
+      for (const [node, inert] of inertState) node.inert = inert;
+      inertState.clear();
+    }
+    document.body.classList.toggle("arcade-modal-open", Boolean(top));
+    document.documentElement.classList.toggle("arcade-modal-open", Boolean(top));
+  }
+
+  function modalKeydown(event) {
+    const top = modalStack[modalStack.length - 1];
+    if (!top) return;
+    // Keep keyboard controls in the dialog, away from game-level listeners.
+    event.stopImmediatePropagation();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      top.dismiss();
+    } else if (event.key === "Tab") {
+      const nodes = modalFocusables(top.card);
+      const first = nodes[0] || top.card;
+      const last = nodes[nodes.length - 1] || top.card;
+      if (!top.card.contains(document.activeElement) || document.activeElement === top.card ||
+          (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus({ preventScroll: true });
+      }
+    }
+  }
+
+  function modalFocusin(event) {
+    const top = modalStack[modalStack.length - 1];
+    if (top && !top.card.contains(event.target)) {
+      (modalFocusables(top.card)[0] || top.card).focus({ preventScroll: true });
+    }
+  }
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -211,30 +269,80 @@
 
   function showModal(options) {
     const opts = options || {};
+    const opener = Date.now() - pointerTime < 500 && lastPointerOpener && lastPointerOpener.isConnected ? lastPointerOpener : document.activeElement;
+    lastPointerOpener = null;
     const backdrop = el("div", "modal-backdrop");
     const card = el("section", "modal-card" + (opts.className ? " " + opts.className : ""));
     const head = el("div", "modal-head");
     const title = el("h2", "modal-title", opts.title || "Ray Arcade");
     const body = el("div", "modal-body");
     const actions = el("div", "modal-actions");
+    const closeButton = el("button", "modal-close", "\u00d7");
+    const actionList = opts.actions || [{ label: "我知道了", kind: "primary", value: true }];
+    let closed = false;
+    title.id = "arcade-modal-title-" + (++modalId);
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-modal", "true");
+    card.setAttribute("aria-labelledby", title.id);
+    card.tabIndex = -1;
+    closeButton.type = "button";
+    closeButton.setAttribute("aria-label", "关闭");
 
     head.appendChild(title);
+    head.appendChild(closeButton);
     if (opts.html) body.innerHTML = opts.html;
     else if (opts.content) body.appendChild(opts.content);
     else body.textContent = opts.message || "";
 
     function close(result) {
+      if (closed) return;
+      closed = true;
+      const wasTop = modalStack[modalStack.length - 1] === entry;
+      modalStack.splice(modalStack.indexOf(entry), 1);
+      for (const modal of modalStack) {
+        if (backdrop.contains(modal.opener)) modal.opener = entry.opener;
+      }
       backdrop.remove();
+      syncModalBackground();
+      if (!modalStack.length) {
+        modalObserver.disconnect();
+        modalObserver = null;
+        document.removeEventListener("keydown", modalKeydown, true);
+        document.removeEventListener("focusin", modalFocusin, true);
+      }
+      if (wasTop) {
+        const top = modalStack[modalStack.length - 1];
+        const restore = entry.opener;
+        const target = restore && restore.isConnected && !restore.closest("[inert]") &&
+          (!top || top.card.contains(restore)) ? restore : top && top.card;
+        if (target) target.focus({ preventScroll: true });
+      }
       if (opts.onClose) opts.onClose(result);
     }
 
-    (opts.actions || [{ label: "我知道了", kind: "primary", value: true }]).forEach((act) => {
+    function runAction(act) {
+      if (closed) return;
+      if (act && act.onClick) act.onClick(close);
+      else close(act && act.value);
+    }
+
+    function dismiss() {
+      if (closed) return;
+      // Dismissal is cancellation, never implicit consent to a primary action.
+      if (opts.onDismiss) opts.onDismiss(close);
+      else close();
+    }
+
+    const entry = { backdrop, card, dismiss, opener };
+    closeButton.addEventListener("click", dismiss);
+    actionList.forEach((act) => {
       const btn = el("button", act.kind === "secondary" ? "secondary-btn" : act.kind === "danger" ? "danger-btn" : "primary-btn", act.label);
+      btn.type = "button";
       btn.addEventListener("click", () => {
+        if (closed) return;
         beep(act.beep || "tap");
         vibrate(12);
-        if (act.onClick) act.onClick(close);
-        else close(act.value);
+        runAction(act);
       });
       actions.appendChild(btn);
     });
@@ -244,6 +352,15 @@
     card.appendChild(actions);
     backdrop.appendChild(card);
     document.body.appendChild(backdrop);
+    modalStack.push(entry);
+    if (!modalObserver) {
+      modalObserver = new MutationObserver(syncModalBackground);
+      modalObserver.observe(document.body, { childList: true });
+      document.addEventListener("keydown", modalKeydown, true);
+      document.addEventListener("focusin", modalFocusin, true);
+    }
+    syncModalBackground();
+    card.focus({ preventScroll: true });
     return close;
   }
 
@@ -252,7 +369,8 @@
     return showModal({
       title: meta.title || "怎么玩",
       html: lines,
-      actions: [{ label: first ? "开始游戏" : "我知道了", kind: "primary", beep: "ok", onClick: (close) => { close(true); if (onDone) onDone(); } }]
+      actions: [{ label: first ? "开始游戏" : "我知道了", kind: "primary", beep: "ok", value: true }],
+      onClose: () => { if (onDone) onDone(); }
     });
   }
 

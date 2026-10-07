@@ -2,6 +2,22 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { makeBrowser, loadArcade, loadStarfall, plain, IDBFactory } = require('./storage-harness.cjs');
 
+test('a stale no-op cloud pull cannot interrupt newer local gameplay', async () => {
+  const c = makeBrowser(), a = loadArcade(c);
+  await a.store.ready;
+  const changes = [];
+  c.addEventListener('ray-save-owner-changing', event => changes.push(event.detail.reason));
+  const pull = a.store.edit(() => {}, 'pulled');
+  a.notePlay('frontier');
+  await pull;
+  await a.store.tail;
+  assert.equal(a.getStats().frontier.plays, 1);
+  assert.deepEqual(changes, []);
+  await a.store.edit(record => { record.payload.buckets.stats.frontier.bestScore = 12; }, 'pulled');
+  assert.deepEqual(changes, ['pulled'], 'A real remote replacement must still stop the old game');
+  assert.equal(a.getStats().frontier.bestScore, 12);
+});
+
 test('two tabs add coins and change only settings without losing economic state', async () => {
   const indexedDB = new IDBFactory();
   const a = loadStarfall(makeBrowser({ indexedDB }));

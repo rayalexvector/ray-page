@@ -417,6 +417,10 @@
     UI.showModal({
       title: "暂停中",
       html: `<p>${UI.escapeHtml(message || "游戏已暂停。")}</p>`,
+      onDismiss: close => {
+        close();
+        if (currentGame) currentGame.resume();
+      },
       actions: [
         { label: "继续", kind: "primary", onClick: (close) => { close(); pauseModalOpen = false; currentGame && currentGame.resume(); } },
         { label: "重开", kind: "secondary", onClick: (close) => { close(); pauseModalOpen = false; currentGame && currentGame.restart(); } },
@@ -441,12 +445,6 @@
   window.addEventListener("blur", () => currentGame && currentGame.pause());
 
   document.addEventListener("gesturestart", (ev) => ev.preventDefault(), { passive: false });
-  let lastTouchEnd = 0;
-  document.addEventListener("touchend", (ev) => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 320) ev.preventDefault();
-    lastTouchEnd = now;
-  }, { passive: false });
 
   initCloudSave();
   renderLobby();
