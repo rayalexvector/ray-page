@@ -6,7 +6,7 @@ const runtime = fs.readFileSync(require.resolve('../home-runtime.js'), 'utf8');
 const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
 const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
 const tick = () => new Promise(resolve => setImmediate(resolve));
-function harness() {
+function harness({ maintenance = false } = {}) {
   const nodes = new Map(), events = new Map(), storage = new Map();
   function node(id) {
     if (nodes.has(id)) return nodes.get(id);
@@ -30,9 +30,31 @@ function harness() {
     fetch: async (url, options) => { requests.push({ url, options }); if (fail) throw new Error('offline'); return { ok: true, json: async () => ({ ok: true, user, daily: {} }) }; },
   };
   context.window = context; context.globalThis = context;
-  vm.createContext(context); vm.runInContext(runtime, context); vm.runInContext(script, context);
+  // Keep dormant identity/media regressions, and exercise the shipped flag separately below.
+  const source = maintenance ? script : script.replace('const AI_MAINTENANCE = true;', 'const AI_MAINTENANCE = false;');
+  vm.createContext(context); vm.runInContext(runtime, context); vm.runInContext(source, context);
   return { context, node, events, storage, requests, run: code => vm.runInContext(code, context), setUser: value => { user = value; }, offline: () => { fail = true; } };
 }
+test('shipped maintenance mode blocks login, registration, AI and microphone work', async () => {
+  const app = harness({ maintenance: true }); await tick();
+  app.context.fetch = async () => assert.fail('maintenance action made a network request');
+  app.context.navigator.mediaDevices.getUserMedia = async () => assert.fail('maintenance requested microphone');
+  for (const action of ['openChatModal()', 'openCantoneseModal()', 'startVoiceRecording()', 'startCantoneseTranslator()']) {
+    await app.run(action);
+    assert.equal(app.node('maintenance-modal').hidden, false);
+    assert.equal(app.node('chat-modal').hidden, true);
+    assert.equal(app.node('cantonese-modal').hidden, true);
+    app.run('closeMaintenanceModal()');
+  }
+  for (const id of ['login-form', 'register-form', 'chat-form']) {
+    await app.node(id).emit('submit');
+    assert.equal(app.node('maintenance-modal').hidden, false);
+    app.run('closeMaintenanceModal()');
+  }
+  await app.run('sendRegisterCodeButton').emit('click');
+  assert.equal(app.node('maintenance-modal').hidden, false);
+  await assert.rejects(app.run('processCantoneseSegment({})'), error => error.retryable === false);
+});
 test('actual UI restores verification/login/register/logout controls offline and locks local identity', async () => {
   const app = harness(); await tick(); app.offline();
   app.node('register-invite').value = 'test'; app.node('register-email').value = 'a@test.invalid';

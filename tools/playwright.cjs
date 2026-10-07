@@ -51,6 +51,7 @@ function main() {
     browserLaunchOptions();
     console.log('Browser:', process.env.CHROMIUM_PATH || 'bundled Chromium headless shell');
     process.env.PLAYWRIGHT_CORE = require.resolve('playwright-core');
+    run(['tests/maintenance-browser.cjs']);
     run(['tests/home-browser.cjs']);
     run(['tests/game-browser-smoke.cjs']);
   }

@@ -280,7 +280,12 @@ async function workerUpgrade(browser, origin) {
     });
     legacy = false;
     console.log('SW upgrade: requesting safe controller update');
-    await page.evaluate(async () => {
+    // Chrome 154 defers an immediate update from the just-registered client by
+    // about 60 seconds. Use an uncontrolled same-origin client to request the
+    // real update, while asserting takeover of the original controlled page.
+    const updatePage = await context.newPage();
+    await updatePage.goto(origin + '/__blank');
+    const upgraded = page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration();
       window.__upgradeEvents = [];
       registration.addEventListener('updatefound', () => {
@@ -291,9 +296,15 @@ async function workerUpgrade(browser, origin) {
       await new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('controller upgrade timeout')), 30000);
         navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(timer); resolve(); }, { once: true });
-        registration.update().catch(error => { clearTimeout(timer); reject(error); });
+        window.__upgradeListening = true;
       });
     });
+    await page.waitForFunction(() => window.__upgradeListening);
+    await Promise.all([upgraded, updatePage.evaluate(async url => {
+      const registration = await navigator.serviceWorker.getRegistration(url);
+      await registration.update();
+    }, originalURL)]);
+    await updatePage.close();
     const evidence = await page.evaluate(async () => {
       const protocol = await new Promise((resolve, reject) => {
         const channel = new MessageChannel();
