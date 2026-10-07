@@ -1,1 +1,1 @@
-importScripts('./sw-runtime-v2.js');
+importScripts('./sw-runtime-v2.js?v=static-v3');

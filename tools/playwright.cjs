@@ -54,6 +54,7 @@ function main() {
     run(['tests/maintenance-browser.cjs']);
     run(['tests/home-browser.cjs']);
     run(['tests/game-browser-smoke.cjs']);
+    run(['tests/save-hardening-browser.cjs']);
   }
 }
 

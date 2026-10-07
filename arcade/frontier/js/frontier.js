@@ -172,18 +172,22 @@ import * as THREE from "../vendor/three.module.js";
     }
 
     loadQuality() {
-      const saved = localStorage.getItem("rayFrontier.quality") || "high";
+      let saved = this.memoryQuality || "high";
+      if (!this.memoryQuality) {
+        try { saved = localStorage.getItem("rayFrontier.quality") || saved; } catch (_) {}
+      }
       const modes = {
         low: { id: "low", label: "低", pixel: 1.2, particles: .65, maxEnemies: 32, shadows: false },
         mid: { id: "mid", label: "中", pixel: 1.7, particles: .9, maxEnemies: 44, shadows: false },
         high: { id: "high", label: "高", pixel: 2.45, particles: 1.25, maxEnemies: 60, shadows: false }
       };
-      return modes[saved] || modes.high;
+      return Object.hasOwn(modes, saved) ? modes[saved] : modes.high;
     }
 
     cycleQuality() {
       const next = this.quality.id === "high" ? "mid" : this.quality.id === "mid" ? "low" : "high";
-      localStorage.setItem("rayFrontier.quality", next);
+      this.memoryQuality = next;
+      try { localStorage.setItem("rayFrontier.quality", next); } catch (_) {}
       this.quality = this.loadQuality();
       this.resize();
       UI && UI.toast && UI.toast(`画质：${this.quality.label}`);
@@ -1342,11 +1346,17 @@ import * as THREE from "../vendor/three.module.js";
     renderMenuStats() {
       const stats = Storage && Storage.getStats ? Storage.getStats().frontier || {} : {};
       const node = this.root.querySelector("[data-menu-stats]");
-      node.innerHTML = `
-        <div class="menu-stat"><span>最高分</span><strong>${stats.bestScore || 0}</strong></div>
-        <div class="menu-stat"><span>最远波次</span><strong>${stats.bestWave || 0}</strong></div>
-        <div class="menu-stat"><span>最高等级</span><strong>${stats.bestLevel || 0}</strong></div>
-      `;
+      node.replaceChildren();
+      for (const [label, key] of [["最高分", "bestScore"], ["最远波次", "bestWave"], ["最高等级", "bestLevel"]]) {
+        const row = document.createElement("div");
+        row.className = "menu-stat";
+        const title = document.createElement("span");
+        title.textContent = label;
+        const value = document.createElement("strong");
+        value.textContent = String(Number.isSafeInteger(stats[key]) && stats[key] >= 0 ? stats[key] : 0);
+        row.append(title, value);
+        node.appendChild(row);
+      }
     }
   }
 

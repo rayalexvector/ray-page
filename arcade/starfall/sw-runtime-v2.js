@@ -1,11 +1,11 @@
 // Shared by every historical registration URL; never cache private requests.
-const CACHE_NAME = 'ray-cat-starfall-static-v2';
+const CACHE_NAME = 'ray-cat-starfall-static-v3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './assets/icon.svg',
   './css/style.css?v=heavy-1',
   '../css/save-ui.css?v=save-v2',
   '../js/save-core.js?v=save-v2',
-  '../js/save-schema.js?v=save-v2',
+  '../js/save-schema.js?v=save-v3',
   './js/storage.js?v=save-v2', '../js/cloud-save.js?v=save-v2',
   './js/audio.js', './js/game.js?v=save-v2', './js/app-cloudsave-3.js?v=save-v2'
 ];

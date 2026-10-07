@@ -38,15 +38,18 @@ function harness() {
 
 test('all historical SW URLs load the safe runtime', () => {
   for (const name of ['sw.js', 'sw-cloudsave-2.js', 'sw-cloudsave-3.js']) {
-    assert.equal(fs.readFileSync('arcade/starfall/' + name, 'utf8').trim(), "importScripts('./sw-runtime-v2.js');");
+    assert.equal(fs.readFileSync('arcade/starfall/' + name, 'utf8').trim(), "importScripts('./sw-runtime-v2.js?v=static-v3');");
   }
 });
 test('upgrade clears known old API caches and leaves unrelated caches alone', async () => {
   const h = harness();
   h.caches.set('ray-cat-starfall-v6-heavy-1', new Map([['https://api.rayalex.cn/auth/me', new Response('private')]]));
+  h.caches.set('ray-cat-starfall-static-v2', new Map([['https://rayalex.cn/arcade/js/save-schema.js?v=save-v2', new Response('old-validator')]]));
   h.caches.set('other-app', new Map([['https://example.org/x', new Response('keep')]]));
   await h.event('install'); await h.event('activate');
   assert.equal(h.caches.has('ray-cat-starfall-v6-heavy-1'), false);
+  assert.equal(h.caches.has('ray-cat-starfall-static-v2'), false);
+  assert.equal(h.caches.get('ray-cat-starfall-static-v3').has('https://rayalex.cn/arcade/js/save-schema.js?v=save-v3'), true);
   assert.equal(h.caches.has('other-app'), true);
   for (const [name, values] of h.caches) {
     if (name.startsWith('ray-cat-starfall-')) assert.ok([...values.keys()].every(url => !url.includes('api.rayalex')));
@@ -62,7 +65,7 @@ test('cross-origin auth, saves, same-origin API and non-GET requests are never i
 test('offline HTML fallback is navigation-only; failed JS never receives HTML', async () => {
   const h = harness(); await h.event('install');
   h.setNetwork(async () => { throw new Error('offline'); });
-  const cache = h.caches.get('ray-cat-starfall-static-v2');
+  const cache = h.caches.get('ray-cat-starfall-static-v3');
   cache.delete('https://rayalex.cn/arcade/starfall/');
   const nav = await h.event('fetch', { request: { method: 'GET', url: 'https://rayalex.cn/arcade/starfall/', mode: 'navigate' } });
   assert.match(await nav.text(), /html/);
@@ -71,9 +74,9 @@ test('offline HTML fallback is navigation-only; failed JS never receives HTML', 
 });
 test('safe controller handshake follows cleanup', async () => {
   const h = harness(); await h.event('install');
-  h.caches.get('ray-cat-starfall-static-v2').set('https://api.rayalex.cn/auth/me', new Response('old-private'));
+  h.caches.get('ray-cat-starfall-static-v3').set('https://api.rayalex.cn/auth/me', new Response('old-private'));
   let ack;
   await h.event('message', { data: { type: 'RAY_GAME_CACHE_PROTOCOL' }, ports: [{ postMessage: data => { ack = data; } }] });
   assert.equal(ack.rayGameCacheProtocol, 2);
-  assert.equal(h.caches.get('ray-cat-starfall-static-v2').has('https://api.rayalex.cn/auth/me'), false);
+  assert.equal(h.caches.get('ray-cat-starfall-static-v3').has('https://api.rayalex.cn/auth/me'), false);
 });

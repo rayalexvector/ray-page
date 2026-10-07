@@ -19,6 +19,13 @@
 
   function cloneBoard(board) { return board.map((row) => row.slice()); }
   function boardsEqual(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  const safeNumber = value => Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER;
+  const validCell = value => Number.isSafeInteger(value) && value >= 0 && value < CHAIN.length;
+  function validProgress(saved) {
+    return saved && typeof saved.active === "boolean" && Array.isArray(saved.board) && saved.board.length === 4 &&
+      saved.board.every(row => Array.isArray(row) && row.length === 4 && row.every(validCell)) &&
+      safeNumber(saved.score) && validCell(saved.bestLevel);
+  }
 
   class Merge2048 {
     constructor(host, services) {
@@ -75,7 +82,12 @@
 
     start() {
       const saved = Storage.loadSession("merge2048");
-      if (saved && saved.active && Array.isArray(saved.board) && saved.board.length === 4) {
+      const archived = Storage.store && Storage.store.record.invalidLocal &&
+        Storage.store.record.conflicts.slice().reverse().find(item => item.reason === "invalid_local" &&
+          item.payload.buckets && item.payload.buckets.sessions && item.payload.buckets.sessions.merge2048);
+      if (saved && !validProgress(saved)) return this.offerRecovery(saved);
+      if (!saved && archived) return this.offerRecovery(archived.payload.buckets.sessions.merge2048, archived);
+      if (saved && saved.active) {
         this.restoreProgress(saved);
         UI.toast("已恢复上次合成进度");
         return;
@@ -85,6 +97,7 @@
     }
 
     restart() {
+      if (this.recoveryPending) return;
       Storage.clearSession("merge2048");
       this.clearResult();
       this.score = 0;
@@ -99,9 +112,10 @@
 
     pause() { this.paused = true; }
     resume() { this.paused = false; }
-    destroy() { this.host.innerHTML = ""; }
+    destroy() { this.destroyed = true; this.host.innerHTML = ""; }
 
     restoreProgress(saved) {
+      if (!validProgress(saved)) return this.offerRecovery(saved);
       this.clearResult();
       this.board = saved.board.map((row) => row.slice(0, 4).map((value) => Number(value) || 0));
       this.score = Number(saved.score || 0);
@@ -110,6 +124,73 @@
       this.started = true;
       this.paused = false;
       this.render();
+    }
+
+    offerRecovery(saved, archived = null) {
+      if (this.recoveryPending) return;
+      this.started = false;
+      this.recoveryPending = true;
+      const original = JSON.parse(JSON.stringify(saved));
+      const store = Storage.store;
+      const owner = store && store.owner;
+      const epoch = store && store.epoch;
+      const recover = async (repair, close) => {
+        if (this.recovering) return;
+        this.recovering = true;
+        try {
+          if (this.destroyed || !store || store.owner !== owner || store.epoch !== epoch) throw new Error("owner_changed");
+          const board = Array.from({ length: 4 }, (_, r) => Array.from({ length: 4 }, (_, c) => {
+              const value = original && original.board && original.board[r] && original.board[r][c];
+              return repair && validCell(value) ? value : 0;
+            }));
+          if (!board.flat().some(Boolean)) {
+            this.board = board; this.spawn(); this.spawn();
+          }
+          const restored = { active: true, board, score: repair && safeNumber(original.score) ? original.score : 0,
+            bestLevel: Math.max(1, ...board.flat()), celebrated: {} };
+          await store.edit(record => {
+            if (this.destroyed || store.owner !== owner || store.epoch !== epoch) throw new Error("owner_changed");
+            const core = window.RaySaveCore;
+            let candidate = core.copy(record.payload);
+            if (archived) {
+              const copy = record.conflicts.find(item => item.id === archived.id);
+              if (!record.invalidLocal || !copy || candidate.buckets.sessions.merge2048) throw new Error("session_changed");
+              if (!core.equal(record.payload, store.initial)) throw new Error("other_progress_changed");
+              candidate = core.copy(copy.payload);
+            } else if (JSON.stringify(candidate.buckets.sessions.merge2048) !== JSON.stringify(original)) throw new Error("session_changed");
+            candidate.buckets.sessions.merge2048 = core.copy(restored);
+            if (!core.validate(candidate, "arcade")) throw new Error("other_invalid_fields");
+            core.archive(record, record.payload, "before_merge_recovery");
+            if (record.pending) core.archive(record, record.pending.request.payload, "rejected_request", { request: record.pending.request });
+            record.pending = null;
+            record.payload = candidate;
+            record.localRevision += 1;
+            record.dirty = true;
+            if (record.invalidLocal) {
+              delete record.invalidLocal;
+              record.blocked = !!record.remote || record.conflicts.some(item => item.reason === "invalid_remote");
+            }
+          }, 'saved');
+          if (this.destroyed || store.owner !== owner || store.epoch !== epoch) throw new Error("owner_changed");
+          Storage.loadSession("merge2048");
+          this.recoveryPending = false;
+          close();
+          this.restoreProgress(restored);
+          this.saveProgress();
+        } catch (_) {
+          UI.toast("无法恢复，原存档已保留。请在存档管理中导出备份。");
+        } finally { this.recovering = false; }
+      };
+      UI.showModal({
+        title: "合成进度需要恢复",
+        message: "原存档将保留为副本。恢复可用棋盘会将异常格子置空；也可以重新开始。",
+        onClose: () => { if (this.recoveryPending) this.services.goHome(); },
+        actions: [
+          { label: "恢复棋盘", kind: "primary", onClick: close => recover(true, close) },
+          { label: "重新开始", kind: "secondary", onClick: close => recover(false, close) },
+          { label: "暂不处理", kind: "secondary" }
+        ]
+      });
     }
 
     saveProgress() {

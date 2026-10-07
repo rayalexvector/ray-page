@@ -37,10 +37,14 @@
     for (const key of ['catJump', 'rayHop', 'merge2048', 'dungeon', 'neonBalls', 'reaction', 'dailyCard', 'frontier']) {
       if (!object(b.stats[key]) || !number(b.stats[key].plays)) return false;
     }
+    if (!Number.isSafeInteger(b.stats.frontier.plays) ||
+      !['bestScore', 'bestWave', 'bestLevel', 'bestChips'].every(key =>
+        !Object.hasOwn(b.stats.frontier, key) ||
+        (Number.isSafeInteger(b.stats.frontier[key]) && number(b.stats.frontier[key])))) return false;
     const game = b.sessions.merge2048;
-    if (game && (!object(game) || !Array.isArray(game.board) || game.board.length !== 4 ||
-        !game.board.every(row => Array.isArray(row) && row.length === 4 && row.every(cell => Number.isSafeInteger(cell) && cell >= 0 && cell <= 64)) ||
-        !number(game.score) || !number(game.bestLevel) || typeof game.active !== 'boolean')) return false;
+    if (game !== undefined && game !== null && (!object(game) || !Array.isArray(game.board) || game.board.length !== 4 ||
+        !game.board.every(row => Array.isArray(row) && row.length === 4 && row.every(cell => Number.isSafeInteger(cell) && cell >= 0 && cell <= 8)) ||
+        !number(game.score) || !Number.isSafeInteger(game.bestLevel) || game.bestLevel < 0 || game.bestLevel > 8 || typeof game.active !== 'boolean')) return false;
     return true;
   }
   return { validate };
